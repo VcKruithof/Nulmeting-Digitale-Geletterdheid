@@ -3,7 +3,7 @@ name: Deploy to Strato
 on:
   push:
     branches:
-      - main  # Of 'master', afhankelijk van je branch-naam
+      - main
 
 jobs:
   web-deploy:
@@ -24,12 +24,12 @@ jobs:
         npm run build
 
     - name: Sync files via SFTP
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      uses: wlixcc/SFTP-Deploy-Action@v1.2.6
       with:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        protocol: sftp
         port: 22
-        local-dir: ./dist/
-        server-dir: /
+        local_path: './dist/*'
+        remote_path: '/'
+        sftp_only: true
