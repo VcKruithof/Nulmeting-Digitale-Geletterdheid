@@ -1,0 +1,35 @@
+name: Deploy to Strato
+
+on:
+  push:
+    branches:
+      - main  # Of 'master', afhankelijk van je branch-naam
+
+jobs:
+  web-deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    steps:
+    - name: Get latest code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install & Build
+      run: |
+        npm ci
+        npm run build
+
+    - name: Sync files via SFTP
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        protocol: sftp
+        port: 22
+        local-dir: ./dist/
+        server-dir: /
