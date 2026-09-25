@@ -1,0 +1,104 @@
+{
+  "entities": {
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Geautoriseerde Cloudwise beheerder toegekend vanuit Firebase",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "grantedAt": { "type": "string" }
+      },
+      "required": ["email", "isActive"]
+    },
+    "School": {
+      "title": "School",
+      "description": "School organisatie gekoppeld aan een unieke schoolcode",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "schoolCode": { "type": "string" },
+        "city": { "type": "string" },
+        "sector": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "createdByUser": { "type": "string" }
+      },
+      "required": ["id", "name", "schoolCode", "isActive"]
+    },
+    "SchoolCode": {
+      "title": "SchoolCode",
+      "description": "Validatie index voor unieke schoolcodes",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["code", "schoolId", "schoolName", "isActive"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Profiel van een onderwijsprofessional gekoppeld aan een school",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "schoolCode": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "targetSector": { "type": "string" },
+        "isCloudwiseAdmin": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "email", "displayName", "schoolId", "schoolCode"]
+    },
+    "Assessment": {
+      "title": "Assessment",
+      "description": "Voltooide nulmeting digitale geletterdheid van een gebruiker gekoppeld aan een school",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "userRole": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "schoolCode": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "targetSector": { "type": "string" },
+        "overallPercentage": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "schoolId", "schoolCode", "overallPercentage"]
+    }
+  },
+  "firestore": {
+    "/admins/{adminId}": {
+      "schema": "AdminUser",
+      "description": "Exclusieve beheerderslijst enkel vanuit Firebase toegekend"
+    },
+    "/schools/{schoolId}": {
+      "schema": "School",
+      "description": "Geregistreerde scholen beheerd door Cloudwise"
+    },
+    "/schoolCodes/{code}": {
+      "schema": "SchoolCode",
+      "description": "Actieve schoolcodes ter validatie tijdens registratie"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Gebruikersprofielen met gekoppelde schoolcode"
+    },
+    "/assessments/{assessmentId}": {
+      "schema": "Assessment",
+      "description": "Nulmeting scores voor individueel inzien en geaggregeerde Cloudwise schoolrapporten"
+    }
+  }
+}

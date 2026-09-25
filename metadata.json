@@ -1,0 +1,8 @@
+{
+  "name": "Backend Nulmeting Digitale Geletterdheid - Vincent",
+  "description": "Nulmeting Digitale Geletterdheid voor onderwijsprofessionals (PO/VO) gebaseerd op de actuele kerndoelen.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Role can only be assigned in Firebase.
+    // Vincent Kruithof (v.kruithof@edu.cloudwise.nl) is the designated initial administrator.
+    // Additional administrators can ONLY be granted by adding their UID or email to the /admins collection in Firebase.
+    function isCloudwiseAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'v.kruithof@edu.cloudwise.nl' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email != null && exists(/databases/$(database)/documents/admins/$(request.auth.token.email)))
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Test connection doc
+    match /test/{docId} {
+      allow read: if true;
+    }
+
+    // Scholen collectie (alleen in Firebase opgeslagen, beheerd door Cloudwise)
+    // Publiek leesbaar zodat leerkrachten hun schoolcode kunnen verifiëren bij registratie
+    match /schools/{schoolId} {
+      allow read: if true;
+      allow write: if isCloudwiseAdmin();
+    }
+
+    // Schoolcodes validatie index (in Firebase opgeslagen)
+    // Publiek leesbaar zodat schoolcodes realtime in Firebase gevalideerd kunnen worden
+    match /schoolCodes/{code} {
+      allow read: if true;
+      allow write: if isCloudwiseAdmin();
+    }
+
+    // Gebruikersprofielen
+    // Nieuwe gebruikers mogen zichzelf nooit een beheerdersrol toekennen
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isCloudwiseAdmin();
+      allow list: if isCloudwiseAdmin();
+      allow create: if isOwner(userId) && (!('isCloudwiseAdmin' in request.resource.data) || request.resource.data.isCloudwiseAdmin == false);
+      allow update: if (isOwner(userId) && (!('isCloudwiseAdmin' in request.resource.data) || request.resource.data.isCloudwiseAdmin == resource.data.isCloudwiseAdmin)) || isCloudwiseAdmin();
+      allow delete: if isCloudwiseAdmin();
+    }
+
+    // Nulmeting Assessment resultaten
+    // "Dit schoolrapport wordt overigens aan niemand getoond en kan enkel door Cloudwise worden opgevraagd."
+    match /assessments/{assessmentId} {
+      allow get: if (isSignedIn() && resource.data.userId == request.auth.uid) || isCloudwiseAdmin();
+      allow list: if (isSignedIn() && resource.data.userId == request.auth.uid) || isCloudwiseAdmin();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isCloudwiseAdmin();
+    }
+
+    // Admins collectie (Read-only voor admins, nooit schrijfbaar via client - enkel vanuit Firebase console/admin)
+    match /admins/{adminId} {
+      allow read: if isCloudwiseAdmin();
+      allow write: if false;
+    }
+  }
+}
