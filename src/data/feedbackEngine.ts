@@ -2,6 +2,7 @@ import {
   AnswersMap,
   AssessmentResult,
   CategoryScore,
+  CalibrationStatus,
   KerndoelId,
   SubcategoryScore,
   UserProfile,
@@ -16,6 +17,77 @@ import {
   getSectorKerndoelNumber,
   getScoreLevel,
 } from '../utils/kerndoelHelper';
+
+export function evaluateSelfCalibration(
+  selfAvg: number,
+  knowledgeCorrect: number,
+  knowledgeTotal: number,
+  subTitle: string
+): {
+  status: CalibrationStatus;
+  label: string;
+  feedback: string;
+} {
+  const knowledgePerc =
+    knowledgeTotal > 0 ? Math.round((knowledgeCorrect / knowledgeTotal) * 100) : 0;
+
+  // 1. More skilled than estimated (Vaardiger dan gedacht)
+  // Demonstrable knowledge is higher than the self-estimate
+  const isMoreSkilled =
+    (selfAvg <= 1.0 && knowledgeCorrect >= 1) ||
+    (selfAvg <= 1.5 && knowledgeCorrect >= 2) ||
+    (selfAvg <= 2.0 && knowledgeCorrect >= 3) ||
+    (selfAvg <= 2.5 && knowledgeCorrect >= 3);
+
+  // 2. Step needed to match self-estimate (Stapje extra nodig)
+  // The self-estimate is higher than demonstrable knowledge (e.g. 2 and 3 chosen -> 2.5 with <= 1/3 correct)
+  const isStepNeeded =
+    !isMoreSkilled && (
+      (selfAvg >= 2.0 && knowledgeCorrect === 0) ||
+      (selfAvg >= 2.5 && knowledgeCorrect <= 1) ||
+      (selfAvg >= 3.0 && knowledgeCorrect <= 1) ||
+      (selfAvg >= 3.5 && knowledgeCorrect <= 2)
+    );
+
+  if (isMoreSkilled) {
+    return {
+      status: 'more_skilled',
+      label: 'Vaardiger dan gedacht',
+      feedback: `Je bent op het gebied van ${subTitle.toLowerCase()} vaardiger dan je denkt! Je schatte jezelf bescheiden in (${selfAvg}/4.0), maar je beantwoordde ${knowledgeCorrect} van de ${knowledgeTotal} kennisvragen goed (${knowledgePerc}%). Vertrouw gerust meer op je parate vakkennis!`,
+    };
+  }
+
+  if (isStepNeeded) {
+    return {
+      status: 'step_needed',
+      label: 'Stapje extra nodig',
+      feedback: `Je schatte jezelf op ${subTitle.toLowerCase()} in op niveau ${selfAvg}/4.0, maar bij de inhoudelijke kennisvragen (${knowledgeCorrect}/${knowledgeTotal} goed, ${knowledgePerc}%) kan op dit specifieke gebied nog een stapje meer gezet worden om aan het zelf-ingeschatte niveau te voldoen. Gerichte verdieping in de kernbegrippen brengt theorie en praktijk perfect in balans.`,
+    };
+  }
+
+  // 3. Realistic / Aligned (Zelfbeeld klopt)
+  if (selfAvg <= 1.5 && knowledgeCorrect === 0) {
+    return {
+      status: 'in_balance',
+      label: 'Zelfbeeld klopt',
+      feedback: `Je zelfbeeld op ${subTitle.toLowerCase()} klopt: je herkent eerlijk dat dit onderwerp nieuw voor je is (${selfAvg}/4.0). Dat is een helder en realistisch vertrekpunt voor gerichte scholing en groei.`,
+    };
+  }
+
+  if (selfAvg >= 3.0 && knowledgeCorrect === knowledgeTotal) {
+    return {
+      status: 'in_balance',
+      label: 'Zelfbeeld klopt',
+      feedback: `Je zelfbeeld op ${subTitle.toLowerCase()} klopt: je schat jezelf vaardig in (${selfAvg}/4.0) en dat bevestig je overtuigend met ${knowledgeCorrect} van de ${knowledgeTotal} goed beantwoorde kennisvragen (${knowledgePerc}%).`,
+    };
+  }
+
+  return {
+    status: 'in_balance',
+    label: 'Zelfbeeld klopt',
+    feedback: `Je zelfbeeld op ${subTitle.toLowerCase()} klopt: jouw inschatting (${selfAvg}/4.0) sluit goed aan bij jouw parate basiskennis (${knowledgeCorrect}/${knowledgeTotal} goed, ${knowledgePerc}%). Een stevige en realistische basis om op voort te bouwen.`,
+  };
+}
 
 export function calculateAssessmentResults(
   user: UserProfile,
@@ -62,18 +134,24 @@ export function calculateAssessmentResults(
 
     const selfAssessmentAvg = selfCount > 0 ? Number((selfSum / selfCount).toFixed(1)) : 1.0;
 
-    // The 3 parts for this subcategory:
-    // 1. Kennis percentage (0 - 100%)
-    // 2. Inschatting percentage (0 - 100% scaled from 1.0..4.0)
-    // 3. Vaardigheden percentage (0 - 100% from Question 1 checklist items)
-    const selfPercentage = Math.round(((selfAssessmentAvg - 1) / 3) * 100);
+    // Koppeling zelfkennis aan kennisvragen:
+    // Er wordt geen willekeurig percentage meer berekend voor zelfkennis.
+    // In plaats daarvan wordt feedback gegeven op het zelfbeeld in relatie tot de getoonde kennis.
+    const calibration = evaluateSelfCalibration(
+      selfAssessmentAvg,
+      knowledgeCorrect,
+      knowledgeTotal,
+      def.rawTitle
+    );
+
     const checklistPercentage =
       checklistTotal > 0 ? Math.round((checklistCount / checklistTotal) * 100) : 0;
 
-    // Combined score: average of the three components (kennis, inschatting, vaardigheden)
-    const combinedPercentage = Math.round(
-      (knowledgePercentage + selfPercentage + checklistPercentage) / 3
-    );
+    // Subcategorie score is gebaseerd op aantoonbare kennis en acties in de klas
+    const combinedPercentage =
+      checklistTotal > 0
+        ? Math.round((knowledgePercentage + checklistPercentage) / 2)
+        : knowledgePercentage;
 
     const subLevelObj = getScoreLevel(combinedPercentage);
     const subCode = getSubcategoryCode(def.id, targetGroup);
@@ -98,7 +176,6 @@ export function calculateAssessmentResults(
       knowledgeTotal,
       knowledgePercentage,
       selfAssessmentAvg,
-      selfPercentage,
       checklistCount,
       checklistTotal,
       checklistPercentage,
@@ -108,6 +185,9 @@ export function calculateAssessmentResults(
       knowledgeQuestionIds: def.knowledgeQuestionIds,
       selfAssessmentQuestionIds: def.selfAssessmentQuestionIds,
       q1ItemIds: def.q1ItemIds,
+      selfCalibrationStatus: calibration.status,
+      selfCalibrationLabel: calibration.label,
+      selfCalibrationFeedback: calibration.feedback,
     };
   });
 
@@ -239,12 +319,33 @@ export function calculateAssessmentResults(
   );
 
   const strengths = sortedSubcats.slice(0, 3).map((s) => {
-    return `${s.code}. ${s.title}: niveau ${s.level} (Kennis: ${s.knowledgePercentage}%, Acties in de klas: ${s.checklistCount}/${s.checklistTotal}, Zelfkennis: ${s.selfAssessmentAvg}/4.0). Je toont hier een sterke beheersing.`;
+    return `${s.code}. ${s.title}: niveau ${s.level} (Kennis: ${s.knowledgePercentage}%, Acties in de klas: ${s.checklistCount}/${s.checklistTotal}, Zelfbeeld: ${s.selfCalibrationLabel}). Je toont hier een sterke beheersing.`;
   });
 
   const growthAreas = sortedSubcats.slice(-3).reverse().map((s) => {
-    return `${s.code}. ${s.title}: niveau ${s.level} (Kennis: ${s.knowledgePercentage}%, Acties in de klas: ${s.checklistCount}/${s.checklistTotal}, Zelfkennis: ${s.selfAssessmentAvg}/4.0). Hier liggen de snelste ontwikkelkansen voor jou en je lessen.`;
+    return `${s.code}. ${s.title}: niveau ${s.level} (Kennis: ${s.knowledgePercentage}%, Acties in de klas: ${s.checklistCount}/${s.checklistTotal}, Zelfbeeld: ${s.selfCalibrationLabel}). Hier liggen de snelste ontwikkelkansen voor jou en je lessen.`;
   });
+
+  // Calculate overall calibration summary
+  const inBalanceCount = subcategoryScores.filter((s) => s.selfCalibrationStatus === 'in_balance').length;
+  const moreSkilledCount = subcategoryScores.filter((s) => s.selfCalibrationStatus === 'more_skilled').length;
+  const stepNeededCount = subcategoryScores.filter((s) => s.selfCalibrationStatus === 'step_needed').length;
+
+  let calibrationSummary = '';
+  if (moreSkilledCount >= 3) {
+    calibrationSummary = `Je bent over het geheel genomen bescheiden: op maar liefst ${moreSkilledCount} van de 9 subdomeinen scoor je hoger op de kennisvragen dan je vooraf inschatte. Je mag volop vertrouwen op je eigen vakkennis!`;
+  } else if (stepNeededCount >= 3) {
+    calibrationSummary = `Je hebt een ambitieus en positief zelfbeeld. Op ${stepNeededCount} onderdelen kan nog een extra stapje gezet worden om aan je zelf-ingeschatte niveau te voldoen. Gerichte verdieping helpt theorie en praktijk perfect op elkaar af te stemmen.`;
+  } else {
+    calibrationSummary = `Je beschikt over een heel evenwichtig en realistisch zelfbeeld: op ${inBalanceCount} van de 9 subdomeinen sluit je eigen inschatting nauwkeurig aan bij wat je laat zien in de kennisvragen.`;
+  }
+
+  const selfCalibrationOverview = {
+    inBalanceCount,
+    moreSkilledCount,
+    stepNeededCount,
+    summary: calibrationSummary,
+  };
 
   // Role-specific Advice
   const roleSpecificAdvice = getRoleSpecificAdvice(user.role, overallLevel);
@@ -275,6 +376,7 @@ export function calculateAssessmentResults(
     growthAreas,
     roleSpecificAdvice,
     actionSteps,
+    selfCalibrationOverview,
   };
 }
 

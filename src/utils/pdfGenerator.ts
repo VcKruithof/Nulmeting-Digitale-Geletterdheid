@@ -173,7 +173,7 @@ export function exportAssessmentToPDF(result: AssessmentResult): void {
   doc.setFontSize(7.8);
   doc.setTextColor(...darkText);
   doc.text(
-    'Totaalscore gebouwd uit kennis & acties in de klas. Zelfkennis bepaalt de subdomeinniveaus.',
+    'Totaalscore gebouwd uit kennis & acties in de klas. Zelfkennisvragen gekoppeld voor feedback op zelfbeeld.',
     margin + 55,
     currentY + 24
   );
@@ -233,7 +233,7 @@ export function exportAssessmentToPDF(result: AssessmentResult): void {
     doc.setFontSize(8);
     doc.setTextColor(...mutedText);
     doc.text(
-      `Kennisvragen: ${cat.knowledgeCorrect}/${cat.knowledgeTotal} (${cat.knowledgePercentage}%)   •   Acties in de klas: ${cat.checklistCount}/${cat.checklistTotal} (${cat.checklistPercentage}%)   •   Zelfkennis: ${cat.selfAssessmentAvg}/4.0`,
+      `Kennisvragen: ${cat.knowledgeCorrect}/${cat.knowledgeTotal} (${cat.knowledgePercentage}%)   •   Acties in de klas: ${cat.checklistCount}/${cat.checklistTotal} (${cat.checklistPercentage}%)   •   Zelfbeeld: ${cat.selfAssessmentAvg}/4.0 (gekoppeld)`,
       margin + 8,
       currentY + 13.5
     );
@@ -330,10 +330,10 @@ export function exportAssessmentToPDF(result: AssessmentResult): void {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.8);
   doc.text('Subdomein', margin + 3, currentY + 4.8);
-  doc.text('Kennisvragen', margin + 68, currentY + 4.8);
-  doc.text('Acties klas', margin + 98, currentY + 4.8);
-  doc.text('Zelfkennis', margin + 126, currentY + 4.8);
-  doc.text('Niveau', margin + 152, currentY + 4.8);
+  doc.text('Kennisvragen', margin + 64, currentY + 4.8);
+  doc.text('Acties klas', margin + 92, currentY + 4.8);
+  doc.text('Zelfbeeld (Feedback)', margin + 118, currentY + 4.8);
+  doc.text('Niveau', margin + 160, currentY + 4.8);
 
   currentY += tableHeaderHeight;
 
@@ -357,20 +357,20 @@ export function exportAssessmentToPDF(result: AssessmentResult): void {
     doc.setFontSize(7.5);
     doc.text(
       `${sub.knowledgeCorrect}/${sub.knowledgeTotal} (${sub.knowledgePercentage}%)`,
-      margin + 68,
+      margin + 64,
       currentY + 5.2
     );
     doc.text(
       `${sub.checklistCount}/${sub.checklistTotal} (${sub.checklistPercentage}%)`,
-      margin + 98,
+      margin + 92,
       currentY + 5.2
     );
-    doc.text(`${sub.selfAssessmentAvg} / 4.0`, margin + 126, currentY + 5.2);
+    doc.text(`${sub.selfCalibrationLabel} (${sub.selfAssessmentAvg}/4.0)`, margin + 118, currentY + 5.2);
 
     doc.setTextColor(...primaryNavy);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.8);
-    doc.text(sub.level, margin + 152, currentY + 5.2);
+    doc.text(sub.level, margin + 160, currentY + 5.2);
 
     currentY += rowHeight;
   });

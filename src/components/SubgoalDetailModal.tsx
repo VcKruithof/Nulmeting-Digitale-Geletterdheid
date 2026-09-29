@@ -57,15 +57,12 @@ export const SubgoalDetailModal: React.FC<SubgoalDetailModalProps> = ({
     .map((id) => QUESTIONS.find((q) => q.id === id))
     .filter(Boolean);
 
-  // Compute safe percentages for the 3 components
+  // Compute safe percentages for the components
   const knowledgePerc =
     subgoal.knowledgePercentage ??
     (subgoal.knowledgeTotal > 0
       ? Math.round((subgoal.knowledgeCorrect / subgoal.knowledgeTotal) * 100)
       : 0);
-  const selfPerc =
-    subgoal.selfPercentage ??
-    Math.round(((subgoal.selfAssessmentAvg - 1) / 3) * 100);
   const checklistPerc =
     subgoal.checklistPercentage ??
     (subgoal.checklistTotal > 0
@@ -73,7 +70,7 @@ export const SubgoalDetailModal: React.FC<SubgoalDetailModalProps> = ({
       : 0);
   const totalCombined =
     subgoal.combinedPercentage ??
-    Math.round((knowledgePerc + selfPerc + checklistPerc) / 3);
+    (checklistPerc > 0 ? Math.round((knowledgePerc + checklistPerc) / 2) : knowledgePerc);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
@@ -96,7 +93,7 @@ export const SubgoalDetailModal: React.FC<SubgoalDetailModalProps> = ({
               {subgoal.code}. {subgoal.title}
             </h2>
             <p className="text-xs text-on-surface-variant mt-1">
-              Het niveau van dit subdomein (<strong>{subgoal.level}</strong>) is gebaseerd op de combinatie van kennisvragen ({knowledgePerc}%), acties in de klas ({checklistPerc}%) en zelfkennisvragen ({selfPerc}%).
+              Het niveau van dit subdomein (<strong>{subgoal.level}</strong>) is gebaseerd op de combinatie van kennisvragen ({knowledgePerc}%) en acties in de klas ({checklistPerc}%). De zelfkennisvragen geven didactische feedback op je zelfbeeld.
             </p>
           </div>
 
@@ -134,25 +131,47 @@ export const SubgoalDetailModal: React.FC<SubgoalDetailModalProps> = ({
               </div>
             </div>
 
-            {/* Metric 2: Zelfkennisvragen */}
+            {/* Metric 2: Zelfbeeld (Inschatting) */}
             <div className="bg-surface-container-lowest p-4 rounded-xl border border-[#e8e8e8] shadow-xs">
               <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block mb-1">
-                2. Zelfkennis (Inschatting)
+                2. Zelfbeeld (Inschatting)
               </span>
               <div className="flex items-baseline gap-2">
                 <span className="font-headline-md text-xl font-extrabold text-orange-2">
                   {subgoal.selfAssessmentAvg}
                 </span>
                 <span className="text-xs font-semibold text-on-surface-variant">/ 4.0</span>
-                <span className="text-xs font-semibold text-orange-2/90">
-                  ({selfPerc}%)
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    subgoal.selfCalibrationStatus === 'more_skilled'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : subgoal.selfCalibrationStatus === 'step_needed'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-sky-1 text-primary'
+                  }`}
+                >
+                  {subgoal.selfCalibrationLabel}
                 </span>
               </div>
-              <div className="w-full h-1.5 bg-surface-container-high rounded-full mt-2 overflow-hidden">
-                <div
-                  className="h-full bg-orange-2 rounded-full transition-all"
-                  style={{ width: `${selfPerc}%` }}
-                />
+              {/* 4-step level indicator without percentage */}
+              <div className="grid grid-cols-4 gap-1 mt-2.5">
+                {[1, 2, 3, 4].map((step) => (
+                  <div
+                    key={step}
+                    title={`Niveau ${step} van 4`}
+                    className={`h-1.5 rounded-full transition-all ${
+                      subgoal.selfAssessmentAvg >= step
+                        ? 'bg-orange-2'
+                        : subgoal.selfAssessmentAvg >= step - 0.5
+                        ? 'bg-orange-2/50'
+                        : 'bg-surface-container-high'
+                    }`}
+                  />
+                ))}
+              </div>
+              <div className="flex justify-between text-[9px] text-on-surface-variant/80 font-medium mt-1">
+                <span>Niveau 1</span>
+                <span>Niveau 4</span>
               </div>
             </div>
 
@@ -177,6 +196,50 @@ export const SubgoalDetailModal: React.FC<SubgoalDetailModalProps> = ({
                   }}
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Feedback op Zelfbeeld: Koppeling Zelfkennis & Kennisvragen */}
+          <div
+            className={`p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row items-start gap-3.5 ${
+              subgoal.selfCalibrationStatus === 'more_skilled'
+                ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                : subgoal.selfCalibrationStatus === 'step_needed'
+                ? 'bg-amber-50/70 border-amber-200 text-amber-950'
+                : 'bg-sky-50/70 border-sky-200 text-slate-900'
+            }`}
+          >
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                subgoal.selfCalibrationStatus === 'more_skilled'
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : subgoal.selfCalibrationStatus === 'step_needed'
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-sky-1 text-primary'
+              }`}
+            >
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-extrabold uppercase tracking-wider">
+                  Koppeling Zelfkennis & Kennisvragen:
+                </span>
+                <span
+                  className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                    subgoal.selfCalibrationStatus === 'more_skilled'
+                      ? 'bg-emerald-200 text-emerald-900'
+                      : subgoal.selfCalibrationStatus === 'step_needed'
+                      ? 'bg-amber-200 text-amber-900'
+                      : 'bg-sky-2 text-primary'
+                  }`}
+                >
+                  {subgoal.selfCalibrationLabel}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm leading-relaxed">
+                {subgoal.selfCalibrationFeedback}
+              </p>
             </div>
           </div>
 
@@ -267,11 +330,31 @@ export const SubgoalDetailModal: React.FC<SubgoalDetailModalProps> = ({
 
           {/* Section 2: Eigen Didactische Inschatting Details */}
           <div className="bg-surface-container-low/50 rounded-2xl p-5 border border-[#e8e8e8]">
-            <div className="flex items-center gap-2 mb-3 text-orange-2">
-              <Sparkles className="w-4 h-4" />
-              <h3 className="font-headline-md text-base font-bold text-on-background">
-                2. Zelfkennisvragen (Inschatting • Gemiddeld: {subgoal.selfAssessmentAvg}/4.0)
-              </h3>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-orange-2">
+                <Sparkles className="w-4 h-4" />
+                <h3 className="font-headline-md text-base font-bold text-on-background">
+                  2. Zelfkennisvragen (Gemiddeld: {subgoal.selfAssessmentAvg} / 4.0)
+                </h3>
+              </div>
+              <span
+                className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                  subgoal.selfCalibrationStatus === 'more_skilled'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : subgoal.selfCalibrationStatus === 'step_needed'
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-sky-1 text-primary'
+                }`}
+              >
+                {subgoal.selfCalibrationLabel}
+              </span>
+            </div>
+
+            <div className="p-3 bg-orange-50/70 rounded-xl border border-orange-200/80 text-xs text-orange-950 mb-3 flex items-start gap-2.5">
+              <Sparkles className="w-4 h-4 text-orange-600 mt-0.5 shrink-0" />
+              <p className="leading-relaxed">
+                <strong>Gekoppeld aan de kennisvragen:</strong> Aan deze zelfkennisvragen wordt geen percentage meer toegekend. In plaats daarvan wordt jouw eigen inschatting (<strong>{subgoal.selfAssessmentAvg} / 4.0</strong>) gekoppeld aan de {subgoal.knowledgeTotal} kennisvragen ({subgoal.knowledgeCorrect}/{subgoal.knowledgeTotal} goed, {subgoal.knowledgePercentage}%). Conclusie voor jouw zelfbeeld: <strong>{subgoal.selfCalibrationLabel}</strong>.
+              </p>
             </div>
 
             <div className="space-y-3">

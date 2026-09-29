@@ -104,6 +104,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const cat2 = result.categories.find((c) => c.id === 'cat2') || result.categories[1];
   const cat3 = result.categories.find((c) => c.id === 'cat3') || result.categories[2];
 
+  const allSubcategories = result.categories.flatMap((c) => c.subcategories);
+  const inBalanceSubcats = allSubcategories.filter((s) => s.selfCalibrationStatus === 'in_balance');
+  const moreSkilledSubcats = allSubcategories.filter((s) => s.selfCalibrationStatus === 'more_skilled');
+  const stepNeededSubcats = allSubcategories.filter((s) => s.selfCalibrationStatus === 'step_needed');
+
   // Calculate circular stroke offset
   const radius = 45;
   const circumference = 2 * Math.PI * radius; // 282.7
@@ -132,8 +137,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             <p className="font-body-lg text-base sm:text-lg print:text-sm text-on-surface-variant max-w-2xl leading-relaxed">
               Hier is een overzicht van je prestaties op de Cloudwise nulmeting. Jouw{' '}
               <strong>totaalscore</strong> is opgebouwd uit de <strong>kennisvragen</strong> en de{' '}
-              <strong>acties in de klas</strong>. In het overzicht van de subdomeinen worden ook de{' '}
-              <strong>zelfkennisvragen</strong> meegewogen om jouw niveaus nauwkeurig te bepalen.
+              <strong>acties in de klas</strong>. De <strong>zelfkennisvragen</strong> zijn gekoppeld aan de kennisvragen om gerichte feedback te geven op jouw <strong>zelfbeeld</strong>.
             </p>
           </div>
 
@@ -173,7 +177,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 Kennis: <strong>{result.overallKnowledgePercentage}%</strong> • Acties klas: <strong>{result.overallChecklistPercentage ?? Math.round((result.overallChecklistCount / result.overallChecklistTotal) * 100)}%</strong>
               </div>
               <div className="text-[10px] text-on-surface-variant/75 mt-0.5">
-                (Zelfkennis niet in totaalscore)
+                (Zelfkennis gekoppeld voor feedback op zelfbeeld)
               </div>
             </div>
           </div>
@@ -278,7 +282,6 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 print:gap-2.5">
               {cat1.subcategories.map((sub) => {
                 const subCombined = sub.combinedPercentage ?? sub.knowledgePercentage;
-                const selfPerc = sub.selfPercentage ?? Math.round(((sub.selfAssessmentAvg - 1) / 3) * 100);
                 const checkPerc = sub.checklistPercentage ?? (sub.checklistTotal > 0 ? Math.round((sub.checklistCount / sub.checklistTotal) * 100) : 0);
 
                 return (
@@ -307,11 +310,27 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         style={{ width: `${subCombined}%` }}
                       />
                     </div>
-                    <div className="flex flex-wrap items-center justify-between text-[11px] print:text-[10px] text-on-surface-variant font-medium gap-1">
-                      <span>Kennis: {sub.knowledgePercentage}%</span>
-                      <span>Zelfkennis: {selfPerc}% ({sub.selfAssessmentAvg}/4.0)</span>
-                      <span>Acties in klas: {checkPerc}%</span>
-                      <span className="text-primary font-bold group-hover:underline w-full sm:w-auto text-right mt-0.5 no-print">Details &rarr;</span>
+                    <div className="flex flex-wrap items-center justify-between text-[11px] print:text-[10px] text-on-surface-variant font-medium gap-1 mt-1">
+                      <div className="flex items-center gap-1.5">
+                        <span>Kennis: <strong className="text-on-background">{sub.knowledgePercentage}%</strong></span>
+                        <span>•</span>
+                        <span>Acties: <strong className="text-on-background">{checkPerc}%</strong></span>
+                      </div>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          sub.selfCalibrationStatus === 'more_skilled'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : sub.selfCalibrationStatus === 'step_needed'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                            : 'bg-sky-1 text-primary border border-sky-2'
+                        }`}
+                        title={sub.selfCalibrationFeedback}
+                      >
+                        {sub.selfCalibrationStatus === 'more_skilled' && '★ '}
+                        {sub.selfCalibrationStatus === 'step_needed' && '↗ '}
+                        {sub.selfCalibrationStatus === 'in_balance' && '✓ '}
+                        {sub.selfCalibrationLabel}
+                      </span>
                     </div>
                   </button>
                 );
@@ -345,7 +364,6 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             <div className="flex-grow flex flex-col justify-center gap-4 print:gap-2.5">
               {cat2.subcategories.map((sub) => {
                 const subCombined = sub.combinedPercentage ?? sub.knowledgePercentage;
-                const selfPerc = sub.selfPercentage ?? Math.round(((sub.selfAssessmentAvg - 1) / 3) * 100);
                 const checkPerc = sub.checklistPercentage ?? (sub.checklistTotal > 0 ? Math.round((sub.checklistCount / sub.checklistTotal) * 100) : 0);
 
                 return (
@@ -374,11 +392,27 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         style={{ width: `${subCombined}%` }}
                       />
                     </div>
-                    <div className="flex flex-wrap items-center justify-between text-[11px] print:text-[10px] text-on-surface-variant font-medium gap-1">
-                      <span>Kennis: {sub.knowledgePercentage}%</span>
-                      <span>Zelfkennis: {selfPerc}% ({sub.selfAssessmentAvg}/4.0)</span>
-                      <span>Acties in klas: {checkPerc}%</span>
-                      <span className="text-green-700 font-bold group-hover:underline w-full sm:w-auto text-right mt-0.5 no-print">Details &rarr;</span>
+                    <div className="flex flex-wrap items-center justify-between text-[11px] print:text-[10px] text-on-surface-variant font-medium gap-1 mt-1">
+                      <div className="flex items-center gap-1.5">
+                        <span>Kennis: <strong className="text-on-background">{sub.knowledgePercentage}%</strong></span>
+                        <span>•</span>
+                        <span>Acties: <strong className="text-on-background">{checkPerc}%</strong></span>
+                      </div>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          sub.selfCalibrationStatus === 'more_skilled'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : sub.selfCalibrationStatus === 'step_needed'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                            : 'bg-green-100 text-green-800 border border-green-200'
+                        }`}
+                        title={sub.selfCalibrationFeedback}
+                      >
+                        {sub.selfCalibrationStatus === 'more_skilled' && '★ '}
+                        {sub.selfCalibrationStatus === 'step_needed' && '↗ '}
+                        {sub.selfCalibrationStatus === 'in_balance' && '✓ '}
+                        {sub.selfCalibrationLabel}
+                      </span>
                     </div>
                   </button>
                 );
@@ -412,7 +446,6 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             <div className="flex-grow flex flex-col justify-center gap-4 print:gap-2.5">
               {cat3.subcategories.map((sub) => {
                 const subCombined = sub.combinedPercentage ?? sub.knowledgePercentage;
-                const selfPerc = sub.selfPercentage ?? Math.round(((sub.selfAssessmentAvg - 1) / 3) * 100);
                 const checkPerc = sub.checklistPercentage ?? (sub.checklistTotal > 0 ? Math.round((sub.checklistCount / sub.checklistTotal) * 100) : 0);
 
                 return (
@@ -441,11 +474,27 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         style={{ width: `${subCombined}%` }}
                       />
                     </div>
-                    <div className="flex flex-wrap items-center justify-between text-[11px] print:text-[10px] text-on-surface-variant font-medium gap-1">
-                      <span>Kennis: {sub.knowledgePercentage}%</span>
-                      <span>Zelfkennis: {selfPerc}% ({sub.selfAssessmentAvg}/4.0)</span>
-                      <span>Acties in klas: {checkPerc}%</span>
-                      <span className="text-orange-700 font-bold group-hover:underline w-full sm:w-auto text-right mt-0.5 no-print">Details &rarr;</span>
+                    <div className="flex flex-wrap items-center justify-between text-[11px] print:text-[10px] text-on-surface-variant font-medium gap-1 mt-1">
+                      <div className="flex items-center gap-1.5">
+                        <span>Kennis: <strong className="text-on-background">{sub.knowledgePercentage}%</strong></span>
+                        <span>•</span>
+                        <span>Acties: <strong className="text-on-background">{checkPerc}%</strong></span>
+                      </div>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          sub.selfCalibrationStatus === 'more_skilled'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : sub.selfCalibrationStatus === 'step_needed'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                            : 'bg-orange-100 text-orange-800 border border-orange-200'
+                        }`}
+                        title={sub.selfCalibrationFeedback}
+                      >
+                        {sub.selfCalibrationStatus === 'more_skilled' && '★ '}
+                        {sub.selfCalibrationStatus === 'step_needed' && '↗ '}
+                        {sub.selfCalibrationStatus === 'in_balance' && '✓ '}
+                        {sub.selfCalibrationLabel}
+                      </span>
                     </div>
                   </button>
                 );
@@ -486,6 +535,122 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       {/* ================= IN-DEPTH DETAILS SECTION (EXPANDABLE) ================= */}
       {showDetails && (
         <div className="space-y-8 print:space-y-6 animate-in fade-in duration-300 print-break-before-page">
+          {/* Zelfbeeld & Zelfkennis Feedback Overview */}
+          <div className="bg-surface-container-lowest rounded-[24px] p-6 sm:p-8 print:p-5 ambient-shadow print:shadow-none border border-[#e8e8e8] print-break-inside-avoid">
+            <div className="flex items-center gap-2.5 mb-2">
+              <Sparkles className="w-5 h-5 text-orange-2" />
+              <h2 className="font-headline-md text-xl font-bold text-on-background">
+                Inzicht in Zelfbeeld & Zelfkennis
+              </h2>
+            </div>
+            <p className="text-sm text-on-surface-variant mb-6 leading-relaxed">
+              Jouw eigen inschatting op de 18 zelfkennisvragen is direct gekoppeld aan de 27 inhoudelijke kennisvragen (3 per subdomein). In plaats van een los percentage geeft dit gerichte feedback op hoe realistisch of bescheiden je naar je eigen digitale vaardigheden kijkt:
+            </p>
+
+            {result.selfCalibrationOverview && (
+              <div className="p-4 rounded-xl bg-surface-container-low/70 border border-[#e8e8e8] mb-6">
+                <p className="text-sm font-semibold text-primary leading-relaxed">
+                  {result.selfCalibrationOverview.summary}
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 rounded-xl bg-sky-50 border border-sky-200 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                      <span>✓</span> Zelfbeeld klopt
+                    </span>
+                    <span className="text-base font-extrabold text-primary">
+                      {inBalanceSubcats.length}
+                    </span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant leading-relaxed mb-3">
+                    Onderdelen waar jouw eigen inschatting nauwkeurig aansluit bij je behaalde score op de kennisvragen.
+                  </p>
+                </div>
+                {inBalanceSubcats.length > 0 && (
+                  <div className="pt-2 border-t border-sky-200/60 flex flex-wrap gap-1.5">
+                    {inBalanceSubcats.map((sub) => (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => setSelectedSubgoal(sub)}
+                        title={`${sub.title} (${sub.knowledgePercentage}% kennis, ${sub.selfAssessmentAvg}/4.0 inschatting) - Klik voor details`}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white text-primary border border-sky-200 hover:bg-sky-100 transition-colors cursor-pointer"
+                      >
+                        {sub.code}. {sub.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>★</span> Vaardiger dan gedacht
+                    </span>
+                    <span className="text-base font-extrabold text-emerald-800">
+                      {moreSkilledSubcats.length}
+                    </span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant leading-relaxed mb-3">
+                    Onderdelen waar je jezelf bescheiden inschatte, maar hoog scoorde op de kennisvragen. Vertrouw gerust meer op je vakkennis!
+                  </p>
+                </div>
+                {moreSkilledSubcats.length > 0 && (
+                  <div className="pt-2 border-t border-emerald-200/60 flex flex-wrap gap-1.5">
+                    {moreSkilledSubcats.map((sub) => (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => setSelectedSubgoal(sub)}
+                        title={`${sub.title} (${sub.knowledgePercentage}% kennis, ${sub.selfAssessmentAvg}/4.0 inschatting) - Klik voor details`}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+                      >
+                        {sub.code}. {sub.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>↗</span> Stapje extra nodig
+                    </span>
+                    <span className="text-base font-extrabold text-amber-800">
+                      {stepNeededSubcats.length}
+                    </span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant leading-relaxed mb-3">
+                    Onderdelen waar op dit specifieke gebied nog een stapje meer gezet kan worden om aan het zelf-ingeschatte niveau te voldoen.
+                  </p>
+                </div>
+                {stepNeededSubcats.length > 0 && (
+                  <div className="pt-2 border-t border-amber-200/60 flex flex-wrap gap-1.5">
+                    {stepNeededSubcats.map((sub) => (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => setSelectedSubgoal(sub)}
+                        title={`${sub.title} (${sub.knowledgePercentage}% kennis, ${sub.selfAssessmentAvg}/4.0 inschatting) - Klik voor details`}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
+                      >
+                        {sub.code}. {sub.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Strengths & Growth Areas */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:gap-4 print-break-inside-avoid">
             <div className="bg-surface-container-lowest rounded-[24px] p-6 sm:p-8 print:p-5 ambient-shadow print:shadow-none border border-[#e8e8e8] print-break-inside-avoid">
@@ -740,6 +905,32 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                             <p className="font-semibold text-green-900">{correctAnsLabel}</p>
                           </div>
                         )}
+
+                        {q.type === 'self-assessment' && (() => {
+                          const linkedSubcat = allSubcategories.find((s) => s.id === q.subcategoryId);
+                          if (!linkedSubcat) return null;
+                          return (
+                            <div
+                              className={`p-3 rounded-lg border flex items-start gap-2.5 ${
+                                linkedSubcat.selfCalibrationStatus === 'more_skilled'
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                                  : linkedSubcat.selfCalibrationStatus === 'step_needed'
+                                  ? 'bg-amber-50 border-amber-200 text-amber-950'
+                                  : 'bg-sky-50 border-sky-200 text-slate-900'
+                              }`}
+                            >
+                              <Sparkles className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+                              <div className="text-xs">
+                                <span className="font-bold block mb-0.5">
+                                  Koppeling aan kennisvragen ({linkedSubcat.code}. {linkedSubcat.title}):
+                                </span>
+                                <p className="leading-relaxed">
+                                  {linkedSubcat.selfCalibrationFeedback}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {q.explanation && (
                           <div className="p-3.5 bg-sky-1/30 rounded-lg border border-sky-1 flex items-start gap-2.5">

@@ -61,6 +61,8 @@ export interface Question {
 
 export type AnswersMap = Record<number, string | string[]>;
 
+export type CalibrationStatus = 'in_balance' | 'more_skilled' | 'step_needed';
+
 export interface SubcategoryScore {
   id: SubcategoryId;
   code: string;
@@ -70,16 +72,26 @@ export interface SubcategoryScore {
   knowledgeTotal: number;
   knowledgePercentage: number;
   selfAssessmentAvg: number; // 1.0 - 4.0
-  selfPercentage: number; // 0 - 100
+  selfPercentage?: number; // legacy optional (not shown as % anymore)
   checklistCount: number;
   checklistTotal: number;
   checklistPercentage: number; // 0 - 100
-  combinedPercentage: number; // 0 - 100 (Average of knowledge, self, and skills)
+  combinedPercentage: number; // 0 - 100 (Average of knowledge and skills)
   level: string;
   feedbackText: string;
   knowledgeQuestionIds: number[];
   selfAssessmentQuestionIds: number[];
   q1ItemIds: string[];
+  selfCalibrationStatus: CalibrationStatus;
+  selfCalibrationLabel: string;
+  selfCalibrationFeedback: string;
+}
+
+export interface CalibrationOverview {
+  inBalanceCount: number;
+  moreSkilledCount: number;
+  stepNeededCount: number;
+  summary: string;
 }
 
 export interface CategoryScore {
@@ -125,6 +137,7 @@ export interface AssessmentResult {
     title: string;
     description: string;
   }[];
+  selfCalibrationOverview?: CalibrationOverview;
   answers?: AnswersMap;
 }
 
