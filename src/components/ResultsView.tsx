@@ -112,167 +112,170 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const levelInfo = getScoreLevel(result.overallScorePercentage);
 
   return (
-    <div className="w-full max-w-6xl mx-auto pt-24 pb-16 px-4 sm:px-8 md:px-10">
-      {/* Header Section */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 md:mb-12 gap-8">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="bg-sky-1 text-on-primary-container font-label-sm text-xs px-3 py-1 rounded-full uppercase tracking-wider font-bold">
-              Cloudwise Nulmeting DG • {result.user.targetGroup || 'PO'}
-            </span>
-            <span className="text-xs text-on-surface-variant">
-              Opgeslagen op {new Date().toLocaleDateString('nl-NL')}
-            </span>
-          </div>
-          <h1 className="font-display-lg text-3xl sm:text-4xl md:text-5xl text-on-background tracking-tight mb-3">
-            Jouw Resultaten
-          </h1>
-          <p className="font-body-lg text-base sm:text-lg text-on-surface-variant max-w-2xl leading-relaxed">
-            Hier is een overzicht van je prestaties op de Cloudwise nulmeting. Jouw{' '}
-            <strong>totaalscore</strong> is opgebouwd uit de <strong>kennisvragen</strong> en de{' '}
-            <strong>acties in de klas</strong>. In het overzicht van de subdomeinen worden ook de{' '}
-            <strong>zelfkennisvragen</strong> meegewogen om jouw niveaus nauwkeurig te bepalen.
-          </p>
-        </div>
-
-        {/* Circular Progress score card */}
-        <div className="flex flex-col items-center bg-surface-container-lowest p-6 sm:p-8 rounded-[24px] ambient-shadow border border-white/80 shrink-0 self-center md:self-auto">
-          <div className="relative w-32 h-32 flex items-center justify-center rounded-full bg-surface-container-low mb-4">
-            <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" fill="none" r="45" stroke="#e8e8e8" strokeWidth="10" />
-              <circle
-                className="transition-all duration-1000 ease-out"
-                cx="50"
-                cy="50"
-                fill="none"
-                r="45"
-                stroke="#00b6ed"
-                strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
-                strokeWidth="10"
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="flex flex-col items-center z-10">
-              <span className="font-display-lg text-4xl font-extrabold text-primary">
-                {result.overallScorePercentage}%
+    <div className="w-full max-w-6xl mx-auto pt-24 pb-16 px-4 sm:px-8 md:px-10 print:pt-0 print:pb-0 print:px-0 print:max-w-none">
+      {/* ================= PAGE 1: HERO & LEVEL SCALE ================= */}
+      <div className="print-break-inside-avoid">
+        {/* Header Section */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 md:mb-12 print:mb-8 gap-8">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-sky-1 text-on-primary-container font-label-sm text-xs px-3 py-1 rounded-full uppercase tracking-wider font-bold">
+                Cloudwise Nulmeting DG • {result.user.targetGroup || 'PO'}
               </span>
-              <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">
-                Totaalscore
+              <span className="text-xs text-on-surface-variant">
+                Opgeslagen op {new Date().toLocaleDateString('nl-NL')}
               </span>
             </div>
+            <h1 className="font-display-lg text-3xl sm:text-4xl md:text-5xl print:text-3xl text-on-background tracking-tight mb-3">
+              Jouw Resultaten
+            </h1>
+            <p className="font-body-lg text-base sm:text-lg print:text-sm text-on-surface-variant max-w-2xl leading-relaxed">
+              Hier is een overzicht van je prestaties op de Cloudwise nulmeting. Jouw{' '}
+              <strong>totaalscore</strong> is opgebouwd uit de <strong>kennisvragen</strong> en de{' '}
+              <strong>acties in de klas</strong>. In het overzicht van de subdomeinen worden ook de{' '}
+              <strong>zelfkennisvragen</strong> meegewogen om jouw niveaus nauwkeurig te bepalen.
+            </p>
           </div>
-          <div className="bg-sky-1 text-on-primary-container px-4 py-2 rounded-full font-label-md text-sm font-bold flex items-center gap-2">
-            <Award className="w-4 h-4 text-primary" />
-            <span>{result.overallLevel}</span>
-          </div>
-          <div className="mt-3 text-center text-xs text-on-surface-variant">
-            <div className="font-medium">
-              Kennis: <strong>{result.overallKnowledgePercentage}%</strong> • Acties klas: <strong>{result.overallChecklistPercentage ?? Math.round((result.overallChecklistCount / result.overallChecklistTotal) * 100)}%</strong>
+
+          {/* Circular Progress score card */}
+          <div className="flex flex-col items-center bg-surface-container-lowest p-6 sm:p-8 rounded-[24px] ambient-shadow border border-white/80 shrink-0 self-center md:self-auto print:shadow-none print:border-gray-200">
+            <div className="relative w-32 h-32 flex items-center justify-center rounded-full bg-surface-container-low mb-4">
+              <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" fill="none" r="45" stroke="#e8e8e8" strokeWidth="10" />
+                <circle
+                  className="transition-all duration-1000 ease-out"
+                  cx="50"
+                  cy="50"
+                  fill="none"
+                  r="45"
+                  stroke="#00b6ed"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeWidth="10"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="flex flex-col items-center z-10">
+                <span className="font-display-lg text-4xl font-extrabold text-primary">
+                  {result.overallScorePercentage}%
+                </span>
+                <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">
+                  Totaalscore
+                </span>
+              </div>
             </div>
-            <div className="text-[10px] text-on-surface-variant/75 mt-0.5">
-              (Zelfkennis niet in totaalscore)
+            <div className="bg-sky-1 text-on-primary-container px-4 py-2 rounded-full font-label-md text-sm font-bold flex items-center gap-2">
+              <Award className="w-4 h-4 text-primary" />
+              <span>{result.overallLevel}</span>
+            </div>
+            <div className="mt-3 text-center text-xs text-on-surface-variant">
+              <div className="font-medium">
+                Kennis: <strong>{result.overallKnowledgePercentage}%</strong> • Acties klas: <strong>{result.overallChecklistPercentage ?? Math.round((result.overallChecklistCount / result.overallChecklistTotal) * 100)}%</strong>
+              </div>
+              <div className="text-[10px] text-on-surface-variant/75 mt-0.5">
+                (Zelfkennis niet in totaalscore)
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Scoring Level Legend Bar */}
-      <section className="mb-10 p-5 bg-surface-container-lowest rounded-2xl ambient-shadow border border-[#e8e8e8]">
-        <div className="flex items-center gap-2 mb-3">
-          <Layers className="w-4 h-4 text-primary" />
-          <h2 className="font-headline-md text-sm font-bold text-on-background uppercase tracking-wider">
-            Niveauberekening & Eindscore Schaal
-          </h2>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <div
-            className={`p-3 rounded-xl border text-center transition-all ${
-              result.overallScorePercentage < 50
-                ? 'bg-amber-100/70 border-amber-400 ring-2 ring-amber-400 shadow-xs'
-                : 'bg-surface-container-low/60 border-[#e8e8e8] text-on-surface-variant'
-            }`}
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider block mb-0.5">
-              &le; 50%
-            </span>
-            <span className="text-xs sm:text-sm font-bold block text-on-background">
-              Beginnende gebruiker
-            </span>
+        {/* Scoring Level Legend Bar */}
+        <section className="mb-10 p-5 bg-surface-container-lowest rounded-2xl ambient-shadow border border-[#e8e8e8] print:shadow-none print:mb-0">
+          <div className="flex items-center gap-2 mb-3">
+            <Layers className="w-4 h-4 text-primary" />
+            <h2 className="font-headline-md text-sm font-bold text-on-background uppercase tracking-wider">
+              Niveauberekening & Eindscore Schaal
+            </h2>
           </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div
+              className={`p-3 rounded-xl border text-center transition-all ${
+                result.overallScorePercentage < 50
+                  ? 'bg-amber-100/70 border-amber-400 ring-2 ring-amber-400 shadow-xs'
+                  : 'bg-surface-container-low/60 border-[#e8e8e8] text-on-surface-variant'
+              }`}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider block mb-0.5">
+                &le; 50%
+              </span>
+              <span className="text-xs sm:text-sm font-bold block text-on-background">
+                Beginnende gebruiker
+              </span>
+            </div>
 
-          <div
-            className={`p-3 rounded-xl border text-center transition-all ${
-              result.overallScorePercentage >= 50 && result.overallScorePercentage < 70
-                ? 'bg-sky-1 border-primary ring-2 ring-primary shadow-xs'
-                : 'bg-surface-container-low/60 border-[#e8e8e8] text-on-surface-variant'
-            }`}
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider block mb-0.5">
-              50% – 70%
-            </span>
-            <span className="text-xs sm:text-sm font-bold block text-on-background">
-              Lerend gebruiker
-            </span>
+            <div
+              className={`p-3 rounded-xl border text-center transition-all ${
+                result.overallScorePercentage >= 50 && result.overallScorePercentage < 70
+                  ? 'bg-sky-1 border-primary ring-2 ring-primary shadow-xs'
+                  : 'bg-surface-container-low/60 border-[#e8e8e8] text-on-surface-variant'
+              }`}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider block mb-0.5">
+                50% – 70%
+              </span>
+              <span className="text-xs sm:text-sm font-bold block text-on-background">
+                Lerend gebruiker
+              </span>
+            </div>
+
+            <div
+              className={`p-3 rounded-xl border text-center transition-all ${
+                result.overallScorePercentage >= 70 && result.overallScorePercentage < 90
+                  ? 'bg-emerald-100/70 border-emerald-500 ring-2 ring-emerald-500 shadow-xs'
+                  : 'bg-surface-container-low/60 border-[#e8e8e8] text-on-surface-variant'
+              }`}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider block mb-0.5">
+                70% – 90%
+              </span>
+              <span className="text-xs sm:text-sm font-bold block text-on-background">
+                Gevorderd gebruiker
+              </span>
+            </div>
+
+            <div
+              className={`p-3 rounded-xl border text-center transition-all ${
+                result.overallScorePercentage >= 90
+                  ? 'bg-purple-100/70 border-purple-500 ring-2 ring-purple-500 shadow-xs'
+                  : 'bg-surface-container-low/60 border-[#e8e8e8] text-on-surface-variant'
+              }`}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider block mb-0.5">
+                &gt; 90%
+              </span>
+              <span className="text-xs sm:text-sm font-bold block text-on-background">
+                Expert gebruiker
+              </span>
+            </div>
           </div>
+        </section>
+      </div>
 
-          <div
-            className={`p-3 rounded-xl border text-center transition-all ${
-              result.overallScorePercentage >= 70 && result.overallScorePercentage < 90
-                ? 'bg-emerald-100/70 border-emerald-500 ring-2 ring-emerald-500 shadow-xs'
-                : 'bg-surface-container-low/60 border-[#e8e8e8] text-on-surface-variant'
-            }`}
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider block mb-0.5">
-              70% – 90%
-            </span>
-            <span className="text-xs sm:text-sm font-bold block text-on-background">
-              Gevorderd gebruiker
-            </span>
-          </div>
-
-          <div
-            className={`p-3 rounded-xl border text-center transition-all ${
-              result.overallScorePercentage >= 90
-                ? 'bg-purple-100/70 border-purple-500 ring-2 ring-purple-500 shadow-xs'
-                : 'bg-surface-container-low/60 border-[#e8e8e8] text-on-surface-variant'
-            }`}
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider block mb-0.5">
-              &gt; 90%
-            </span>
-            <span className="text-xs sm:text-sm font-bold block text-on-background">
-              Expert gebruiker
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* Categories Bento Grid with Interactive Clickable Subgoals */}
-      <section className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-10">
+      {/* ================= PAGE 2: KERNDOELEN BLOCKS (STARTS ON PAGE 2) ================= */}
+      <section className="print-break-before-page grid grid-cols-1 md:grid-cols-12 print:grid-cols-12 gap-6 print:gap-4 mb-10 print:mb-0">
         {/* Category 1: Praktische kennis en vaardigheden */}
         {cat1 && (
-          <div className="md:col-span-12 bg-surface-container-lowest rounded-[24px] p-6 sm:p-8 ambient-shadow hover-lift border-t-4 border-primary-container border-x border-b border-[#e8e8e8]/60">
-            <div className="flex justify-between items-start mb-6">
+          <div className="col-span-1 md:col-span-12 print:col-span-12 bg-surface-container-lowest rounded-[24px] print:rounded-2xl p-6 sm:p-8 print:p-5 ambient-shadow print:shadow-none hover-lift border-t-4 border-primary-container border-x border-b border-[#e8e8e8]/60 print-break-inside-avoid">
+            <div className="flex justify-between items-start mb-6 print:mb-3">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-[11px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-sky-1 text-primary">
                     {cat1.kerndoelCode}
                   </span>
                 </div>
-                <h2 className="font-headline-md text-xl sm:text-2xl text-on-background mb-1">
+                <h2 className="font-headline-md text-xl sm:text-2xl print:text-lg text-on-background mb-1">
                   {cat1.title}
                 </h2>
-                <p className="font-body-md text-sm text-on-surface-variant">
-                  Digitale systemen, media en informatie, data en AI. Klik op een subdoel voor detailinzage.
+                <p className="font-body-md text-sm print:text-xs text-on-surface-variant">
+                  Digitale systemen, media en informatie, data en AI.
                 </p>
               </div>
-              <div className="bg-primary-container text-on-primary w-12 h-12 rounded-full flex items-center justify-center font-headline-md text-lg font-bold">
-                {cat1.combinedScorePercentage}
+              <div className="bg-primary-container text-on-primary w-12 h-12 print:w-10 print:h-10 rounded-full flex items-center justify-center font-headline-md text-lg print:text-base font-bold shrink-0">
+                {cat1.combinedScorePercentage}%
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 print:gap-2.5">
               {cat1.subcategories.map((sub) => {
                 const subCombined = sub.combinedPercentage ?? sub.knowledgePercentage;
                 const selfPerc = sub.selfPercentage ?? Math.round(((sub.selfAssessmentAvg - 1) / 3) * 100);
@@ -283,17 +286,17 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     key={sub.id}
                     type="button"
                     onClick={() => setSelectedSubgoal(sub)}
-                    className="text-left p-4 rounded-xl bg-surface-container-low/40 hover:bg-sky-1/30 border border-outline-variant/40 hover:border-primary/50 transition-all duration-200 group cursor-pointer"
+                    className="text-left p-4 print:p-2.5 rounded-xl bg-surface-container-low/40 hover:bg-sky-1/30 border border-outline-variant/40 hover:border-primary/50 transition-all duration-200 group cursor-pointer print-break-inside-avoid"
                   >
                     <div className="flex justify-between mb-1.5 items-center gap-2">
-                      <span className="font-label-md text-sm font-bold text-on-background group-hover:text-primary transition-colors">
+                      <span className="font-label-md text-sm print:text-xs font-bold text-on-background group-hover:text-primary transition-colors">
                         {sub.code}. {sub.title}
                       </span>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-sky-1 text-primary">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-1 text-primary">
                           {sub.level}
                         </span>
-                        <span className="font-label-md text-sm font-bold text-primary">
+                        <span className="font-label-md text-sm print:text-xs font-bold text-primary">
                           {subCombined}%
                         </span>
                       </div>
@@ -304,11 +307,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         style={{ width: `${subCombined}%` }}
                       />
                     </div>
-                    <div className="flex flex-wrap items-center justify-between text-[11px] text-on-surface-variant font-medium gap-1">
+                    <div className="flex flex-wrap items-center justify-between text-[11px] print:text-[10px] text-on-surface-variant font-medium gap-1">
                       <span>Kennis: {sub.knowledgePercentage}%</span>
                       <span>Zelfkennis: {selfPerc}% ({sub.selfAssessmentAvg}/4.0)</span>
                       <span>Acties in klas: {checkPerc}%</span>
-                      <span className="text-primary font-bold group-hover:underline w-full sm:w-auto text-right mt-0.5">Details &rarr;</span>
+                      <span className="text-primary font-bold group-hover:underline w-full sm:w-auto text-right mt-0.5 no-print">Details &rarr;</span>
                     </div>
                   </button>
                 );
@@ -319,27 +322,27 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
         {/* Category 2: Ontwerpen en maken */}
         {cat2 && (
-          <div className="md:col-span-6 bg-surface-container-lowest rounded-[24px] p-6 sm:p-8 ambient-shadow hover-lift border-t-4 border-green-2 border-x border-b border-[#e8e8e8]/60 flex flex-col">
-            <div className="flex justify-between items-start mb-6">
+          <div className="col-span-1 md:col-span-6 print:col-span-6 bg-surface-container-lowest rounded-[24px] print:rounded-2xl p-6 sm:p-8 print:p-5 ambient-shadow print:shadow-none hover-lift border-t-4 border-green-2 border-x border-b border-[#e8e8e8]/60 flex flex-col print-break-inside-avoid">
+            <div className="flex justify-between items-start mb-6 print:mb-3">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-[11px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-green-100 text-green-800">
                     {cat2.kerndoelCode}
                   </span>
                 </div>
-                <h2 className="font-headline-md text-xl font-bold text-on-background mb-1">
+                <h2 className="font-headline-md text-xl print:text-lg font-bold text-on-background mb-1">
                   {cat2.title}
                 </h2>
-                <p className="font-body-md text-sm text-on-surface-variant">
+                <p className="font-body-md text-sm print:text-xs text-on-surface-variant">
                   Creëren met technologie en computational thinking.
                 </p>
               </div>
-              <div className="bg-green-2 text-on-primary w-12 h-12 rounded-full flex items-center justify-center font-headline-md text-lg font-bold">
-                {cat2.combinedScorePercentage}
+              <div className="bg-green-2 text-on-primary w-12 h-12 print:w-10 print:h-10 rounded-full flex items-center justify-center font-headline-md text-lg print:text-base font-bold shrink-0">
+                {cat2.combinedScorePercentage}%
               </div>
             </div>
 
-            <div className="flex-grow flex flex-col justify-center gap-4">
+            <div className="flex-grow flex flex-col justify-center gap-4 print:gap-2.5">
               {cat2.subcategories.map((sub) => {
                 const subCombined = sub.combinedPercentage ?? sub.knowledgePercentage;
                 const selfPerc = sub.selfPercentage ?? Math.round(((sub.selfAssessmentAvg - 1) / 3) * 100);
@@ -350,17 +353,17 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     key={sub.id}
                     type="button"
                     onClick={() => setSelectedSubgoal(sub)}
-                    className="text-left p-4 rounded-xl bg-surface-container-low/40 hover:bg-green-50 border border-outline-variant/40 hover:border-green-400 transition-all duration-200 group cursor-pointer"
+                    className="text-left p-4 print:p-2.5 rounded-xl bg-surface-container-low/40 hover:bg-green-50 border border-outline-variant/40 hover:border-green-400 transition-all duration-200 group cursor-pointer print-break-inside-avoid"
                   >
                     <div className="flex justify-between mb-1.5 items-center gap-2">
-                      <span className="font-label-md text-sm font-bold text-on-background group-hover:text-green-700 transition-colors">
+                      <span className="font-label-md text-sm print:text-xs font-bold text-on-background group-hover:text-green-700 transition-colors">
                         {sub.code}. {sub.title}
                       </span>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-green-100 text-green-800">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">
                           {sub.level}
                         </span>
-                        <span className="font-label-md text-sm font-bold text-green-700">
+                        <span className="font-label-md text-sm print:text-xs font-bold text-green-700">
                           {subCombined}%
                         </span>
                       </div>
@@ -371,11 +374,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         style={{ width: `${subCombined}%` }}
                       />
                     </div>
-                    <div className="flex flex-wrap items-center justify-between text-[11px] text-on-surface-variant font-medium gap-1">
+                    <div className="flex flex-wrap items-center justify-between text-[11px] print:text-[10px] text-on-surface-variant font-medium gap-1">
                       <span>Kennis: {sub.knowledgePercentage}%</span>
                       <span>Zelfkennis: {selfPerc}% ({sub.selfAssessmentAvg}/4.0)</span>
                       <span>Acties in klas: {checkPerc}%</span>
-                      <span className="text-green-700 font-bold group-hover:underline w-full sm:w-auto text-right mt-0.5">Details &rarr;</span>
+                      <span className="text-green-700 font-bold group-hover:underline w-full sm:w-auto text-right mt-0.5 no-print">Details &rarr;</span>
                     </div>
                   </button>
                 );
@@ -386,27 +389,27 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
         {/* Category 3: De gedigitaliseerde wereld */}
         {cat3 && (
-          <div className="md:col-span-6 bg-surface-container-lowest rounded-[24px] p-6 sm:p-8 ambient-shadow hover-lift border-t-4 border-orange-2 border-x border-b border-[#e8e8e8]/60 flex flex-col">
-            <div className="flex justify-between items-start mb-6">
+          <div className="col-span-1 md:col-span-6 print:col-span-6 bg-surface-container-lowest rounded-[24px] print:rounded-2xl p-6 sm:p-8 print:p-5 ambient-shadow print:shadow-none hover-lift border-t-4 border-orange-2 border-x border-b border-[#e8e8e8]/60 flex flex-col print-break-inside-avoid">
+            <div className="flex justify-between items-start mb-6 print:mb-3">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-[11px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800">
                     {cat3.kerndoelCode}
                   </span>
                 </div>
-                <h2 className="font-headline-md text-xl font-bold text-on-background mb-1">
+                <h2 className="font-headline-md text-xl print:text-lg font-bold text-on-background mb-1">
                   {cat3.title}
                 </h2>
-                <p className="font-body-md text-sm text-on-surface-variant">
+                <p className="font-body-md text-sm print:text-xs text-on-surface-variant">
                   Veiligheid, privacy, digitaal welzijn en maatschappelijke impact.
                 </p>
               </div>
-              <div className="bg-orange-2 text-on-primary w-12 h-12 rounded-full flex items-center justify-center font-headline-md text-lg font-bold">
-                {cat3.combinedScorePercentage}
+              <div className="bg-orange-2 text-on-primary w-12 h-12 print:w-10 print:h-10 rounded-full flex items-center justify-center font-headline-md text-lg print:text-base font-bold shrink-0">
+                {cat3.combinedScorePercentage}%
               </div>
             </div>
 
-            <div className="flex-grow flex flex-col justify-center gap-4">
+            <div className="flex-grow flex flex-col justify-center gap-4 print:gap-2.5">
               {cat3.subcategories.map((sub) => {
                 const subCombined = sub.combinedPercentage ?? sub.knowledgePercentage;
                 const selfPerc = sub.selfPercentage ?? Math.round(((sub.selfAssessmentAvg - 1) / 3) * 100);
@@ -417,17 +420,17 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     key={sub.id}
                     type="button"
                     onClick={() => setSelectedSubgoal(sub)}
-                    className="text-left p-4 rounded-xl bg-surface-container-low/40 hover:bg-orange-50 border border-outline-variant/40 hover:border-orange-400 transition-all duration-200 group cursor-pointer"
+                    className="text-left p-4 print:p-2.5 rounded-xl bg-surface-container-low/40 hover:bg-orange-50 border border-outline-variant/40 hover:border-orange-400 transition-all duration-200 group cursor-pointer print-break-inside-avoid"
                   >
                     <div className="flex justify-between mb-1.5 items-center gap-2">
-                      <span className="font-label-md text-sm font-bold text-on-background group-hover:text-orange-700 transition-colors">
+                      <span className="font-label-md text-sm print:text-xs font-bold text-on-background group-hover:text-orange-700 transition-colors">
                         {sub.code}. {sub.title}
                       </span>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800">
                           {sub.level}
                         </span>
-                        <span className="font-label-md text-sm font-bold text-orange-700">
+                        <span className="font-label-md text-sm print:text-xs font-bold text-orange-700">
                           {subCombined}%
                         </span>
                       </div>
@@ -438,11 +441,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         style={{ width: `${subCombined}%` }}
                       />
                     </div>
-                    <div className="flex flex-wrap items-center justify-between text-[11px] text-on-surface-variant font-medium gap-1">
+                    <div className="flex flex-wrap items-center justify-between text-[11px] print:text-[10px] text-on-surface-variant font-medium gap-1">
                       <span>Kennis: {sub.knowledgePercentage}%</span>
                       <span>Zelfkennis: {selfPerc}% ({sub.selfAssessmentAvg}/4.0)</span>
                       <span>Acties in klas: {checkPerc}%</span>
-                      <span className="text-orange-700 font-bold group-hover:underline w-full sm:w-auto text-right mt-0.5">Details &rarr;</span>
+                      <span className="text-orange-700 font-bold group-hover:underline w-full sm:w-auto text-right mt-0.5 no-print">Details &rarr;</span>
                     </div>
                   </button>
                 );
@@ -482,10 +485,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
       {/* ================= IN-DEPTH DETAILS SECTION (EXPANDABLE) ================= */}
       {showDetails && (
-        <div className="space-y-8 animate-in fade-in duration-300">
+        <div className="space-y-8 print:space-y-6 animate-in fade-in duration-300 print-break-before-page">
           {/* Strengths & Growth Areas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-surface-container-lowest rounded-[24px] p-6 sm:p-8 ambient-shadow border border-[#e8e8e8]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:gap-4 print-break-inside-avoid">
+            <div className="bg-surface-container-lowest rounded-[24px] p-6 sm:p-8 print:p-5 ambient-shadow print:shadow-none border border-[#e8e8e8] print-break-inside-avoid">
               <div className="flex items-center gap-2.5 text-success mb-4">
                 <CheckCircle2 className="w-5 h-5 text-green-600" />
                 <h3 className="font-headline-md text-lg font-bold text-on-background">
@@ -502,7 +505,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               </ul>
             </div>
 
-            <div className="bg-surface-container-lowest rounded-[24px] p-6 sm:p-8 ambient-shadow border border-[#e8e8e8]">
+            <div className="bg-surface-container-lowest rounded-[24px] p-6 sm:p-8 print:p-5 ambient-shadow print:shadow-none border border-[#e8e8e8] print-break-inside-avoid">
               <div className="flex items-center gap-2.5 text-orange-2 mb-4">
                 <TrendingUp className="w-5 h-5" />
                 <h3 className="font-headline-md text-lg font-bold text-on-background">
@@ -521,7 +524,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           </div>
 
           {/* Role Specific Advice & 3-Step Action Plan */}
-          <div className="bg-surface-container-lowest rounded-[24px] ambient-shadow p-6 sm:p-8 border border-[#e8e8e8]">
+          <div className="bg-surface-container-lowest rounded-[24px] ambient-shadow print:shadow-none p-6 sm:p-8 print:p-5 border border-[#e8e8e8] print-break-inside-avoid">
             <div className="flex items-center gap-2.5 mb-2">
               <Award className="w-5 h-5 text-primary" />
               <h2 className="font-headline-md text-xl font-bold text-primary">
@@ -573,7 +576,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           </div>
 
           {/* 50 Questions Full Review */}
-          <div className="bg-surface-container-lowest rounded-[24px] ambient-shadow p-6 sm:p-8 border border-[#e8e8e8]">
+          <div className="bg-surface-container-lowest rounded-[24px] ambient-shadow print:shadow-none p-6 sm:p-8 print:p-5 border border-[#e8e8e8] print-break-inside-avoid">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
               <div>
                 <h2 className="font-headline-md text-xl font-bold text-primary">
@@ -652,7 +655,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 return (
                   <div
                     key={q.id}
-                    className="border border-[#e8e8e8] rounded-xl overflow-hidden bg-white transition-all"
+                    className="border border-[#e8e8e8] rounded-xl overflow-hidden bg-white transition-all print-break-inside-avoid"
                   >
                     <button
                       type="button"
