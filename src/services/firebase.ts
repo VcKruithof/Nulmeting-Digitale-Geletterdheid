@@ -103,6 +103,32 @@ async function testConnection() {
 }
 testConnection();
 
+// Helper: Recursively sanitize data before sending to Firestore
+// Firestore strictly rejects fields with 'undefined' values.
+export function cleanFirestoreData<T>(obj: T): T {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj
+      .filter((item) => item !== undefined)
+      .map((item) => cleanFirestoreData(item)) as unknown as T;
+  }
+
+  if (obj instanceof Date) {
+    return obj;
+  }
+
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      cleaned[key] = cleanFirestoreData(value);
+    }
+  }
+  return cleaned as T;
+}
+
 // Helper: Normalize School Code (handles # prefix, whitespace, case-insensitivity)
 export function normalizeSchoolCode(code: string): string {
   if (!code) return '';
@@ -201,6 +227,10 @@ export async function validateSchoolCode(inputCode: string): Promise<School | nu
               schoolCode: sData.schoolCode || sData.code || data.code || inputCode,
               city: sData.city || data.city || '',
               sector: (sData.sector || data.sector || 'PO') as 'PO' | 'VO' | 'PO/VO',
+              bestuurId: sData.bestuurId || data.bestuurId || '',
+              bestuurName: sData.bestuurName || data.bestuurName || '',
+              assignedModules: sData.assignedModules || data.assignedModules || ['kerndoelen'],
+              deadline: sData.deadline || data.deadline || '',
               isActive: sData.isActive !== false,
               createdAt: sData.createdAt || new Date().toISOString(),
             };
@@ -218,6 +248,10 @@ export async function validateSchoolCode(inputCode: string): Promise<School | nu
           schoolCode: data.code || data.schoolCode || inputCode,
           city: data.city || '',
           sector: (data.sector || 'PO') as 'PO' | 'VO' | 'PO/VO',
+          bestuurId: data.bestuurId || '',
+          bestuurName: data.bestuurName || '',
+          assignedModules: data.assignedModules || ['kerndoelen'],
+          deadline: data.deadline || '',
           isActive: true,
           createdAt: new Date().toISOString(),
         };
@@ -248,6 +282,10 @@ export async function validateSchoolCode(inputCode: string): Promise<School | nu
             schoolCode: raw.schoolCode || raw.code || inputCode,
             city: raw.city || '',
             sector: (raw.sector || 'PO') as 'PO' | 'VO' | 'PO/VO',
+            bestuurId: raw.bestuurId || '',
+            bestuurName: raw.bestuurName || '',
+            assignedModules: raw.assignedModules || ['kerndoelen'],
+            deadline: raw.deadline || '',
             isActive: true,
             createdAt: raw.createdAt || new Date().toISOString(),
           };
@@ -282,10 +320,14 @@ export async function saveUserProfile(userProfile: AppUser): Promise<void> {
   const path = `users/${userProfile.uid}`;
   try {
     const userDocRef = doc(db, 'users', userProfile.uid);
-    await setDoc(userDocRef, {
+    // Sanitize data recursively to eliminate any undefined values that crash Firestore
+    const cleaned = cleanFirestoreData({
       ...userProfile,
+      bestuurId: userProfile.bestuurId || '',
+      bestuurName: userProfile.bestuurName || '',
       updatedAt: new Date().toISOString(),
-    }, { merge: true });
+    });
+    await setDoc(userDocRef, cleaned, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -299,22 +341,24 @@ export async function saveAssessmentRecord(
   const assessmentId = assessment.id || `assessment_${Date.now()}`;
   const path = `assessments/${assessmentId}`;
 
-  const payload = {
+  const payload = cleanFirestoreData({
     id: assessmentId,
     userId: user.uid,
-    userEmail: user.email,
-    userName: user.displayName || 'Deelnemer',
-    userRole: user.role,
-    schoolId: user.schoolId,
-    schoolCode: user.schoolCode,
-    schoolName: user.schoolName,
-    targetSector: user.targetSector,
+    userEmail: user.email || '',
+    userName: user.displayName || 'Robin van der Meer',
+    userRole: user.role || 'leerkracht',
+    schoolId: user.schoolId || '',
+    schoolCode: user.schoolCode || '',
+    schoolName: user.schoolName || '',
+    bestuurId: user.bestuurId || '',
+    bestuurName: user.bestuurName || '',
+    targetSector: user.targetSector || 'PO',
     overallScorePercentage: assessment.overallScorePercentage,
-    overallLevel: assessment.overallLevel,
+    overallLevel: assessment.overallLevel || 'Basisvaardig',
     completedAt: assessment.completedAt || new Date().toISOString(),
     result: assessment,
     createdAt: new Date().toISOString(),
-  };
+  });
 
   try {
     await setDoc(doc(db, 'assessments', assessmentId), payload);
@@ -387,6 +431,10 @@ export async function getAllSchools(): Promise<School[]> {
         schoolCode: raw.schoolCode || raw.code || '',
         city: raw.city || '',
         sector: (raw.sector || 'PO') as 'PO' | 'VO' | 'PO/VO',
+        bestuurId: raw.bestuurId || '',
+        bestuurName: raw.bestuurName || '',
+        assignedModules: raw.assignedModules || ['kerndoelen'],
+        deadline: raw.deadline || '',
         isActive: raw.isActive !== false,
         createdAt: raw.createdAt || new Date().toISOString(),
         notes: raw.notes || '',
@@ -792,12 +840,12 @@ export async function saveCandidateProgress(
 
   // 2. Firestore cloud backup
   try {
-    await setDoc(doc(db, 'testProgress', userId), {
+    await setDoc(doc(db, 'testProgress', userId), cleanFirestoreData({
       userId,
-      currentQuestionIndex,
-      answers,
+      currentQuestionIndex: currentQuestionIndex ?? 0,
+      answers: answers ?? {},
       updatedAt: new Date().toISOString(),
-    }, { merge: true });
+    }), { merge: true });
   } catch (err) {
     // Non-blocking background error
   }
@@ -859,12 +907,13 @@ export async function linkSchoolToUser(
         const updatedUser: AppUser = {
           uid: userId,
           email: existingProfile?.email || auth.currentUser?.email || '',
-          displayName: existingProfile?.displayName || auth.currentUser?.displayName || 'Onderwijsprofessional',
+          displayName: existingProfile?.displayName || auth.currentUser?.displayName || 'Robin van der Meer',
           role: (act.targetFunction && act.targetFunction !== 'alle' ? act.targetFunction : existingProfile?.role || 'leerkracht') as UserRole,
-          schoolId: act.schoolId,
+          schoolId: act.schoolId || '',
           schoolCode: clean.toUpperCase(),
-          schoolName: act.schoolName,
-          bestuurId: act.bestuurId,
+          schoolName: act.schoolName || 'School',
+          bestuurId: act.bestuurId || existingProfile?.bestuurId || '',
+          bestuurName: existingProfile?.bestuurName || '',
           schoolSector: resolvedSector,
           targetSector: resolvedSector,
           assignedModules: act.assignedModules && act.assignedModules.length > 0 ? act.assignedModules : ['kerndoelen'],
@@ -889,7 +938,7 @@ export async function linkSchoolToUser(
 
         const schoolObj: School = {
           id: act.schoolId,
-          bestuurId: act.bestuurId,
+          bestuurId: act.bestuurId || '',
           name: act.schoolName,
           schoolName: act.schoolName,
           schoolCode: clean.toUpperCase(),
@@ -914,12 +963,13 @@ export async function linkSchoolToUser(
       const updatedUser: AppUser = {
         uid: userId,
         email: existingProfile?.email || auth.currentUser?.email || '',
-        displayName: existingProfile?.displayName || auth.currentUser?.displayName || 'Onderwijsprofessional',
+        displayName: existingProfile?.displayName || auth.currentUser?.displayName || 'Robin van der Meer',
         role: existingProfile?.role || 'leerkracht',
         schoolId: school.id,
         schoolCode: normalizeSchoolCode(school.schoolCode),
         schoolName: school.name || school.schoolName || 'School',
-        bestuurId: school.bestuurId || existingProfile?.bestuurId,
+        bestuurId: school.bestuurId || existingProfile?.bestuurId || '',
+        bestuurName: school.bestuurName || existingProfile?.bestuurName || '',
         schoolSector: effectiveSchoolSector,
         targetSector: effectiveTargetSector,
         assignedModules: school.assignedModules && school.assignedModules.length > 0 ? school.assignedModules : ['kerndoelen'],
@@ -939,9 +989,16 @@ export async function linkSchoolToUser(
     };
   } catch (err: any) {
     console.error('Error linking school code:', err);
+    let msg = err?.message || 'Probeer opnieuw';
+    try {
+      const parsed = JSON.parse(msg);
+      if (parsed?.error) msg = parsed.error;
+    } catch {
+      // not a json string
+    }
     return {
       success: false,
-      error: 'Er is een fout opgetreden bij het koppelen van de code: ' + (err.message || 'Probeer opnieuw'),
+      error: 'Er is een fout opgetreden bij het koppelen van de code: ' + msg,
     };
   }
 }

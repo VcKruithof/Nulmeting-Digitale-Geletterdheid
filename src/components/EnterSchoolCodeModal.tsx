@@ -117,7 +117,14 @@ export const EnterSchoolCodeModal: React.FC<EnterSchoolCodeModalProps> = ({
         setError(res.error || 'Het ontgrendelen is mislukt. Controleer de code.');
       }
     } catch (err: any) {
-      setError('Fout bij ontgrendelen: ' + (err.message || 'Onbekende fout'));
+      let msg = err?.message || 'Onbekende fout';
+      try {
+        const parsed = JSON.parse(msg);
+        if (parsed?.error) msg = parsed.error;
+      } catch {
+        // normal string
+      }
+      setError('Fout bij ontgrendelen: ' + msg);
     } finally {
       setIsSubmitting(false);
     }
