@@ -9,6 +9,7 @@ import {
   auth,
   googleProvider,
   validateSchoolCode,
+  validateActivationCode,
   saveUserProfile,
   getUserProfile,
   checkUserIsAdmin,
@@ -65,7 +66,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Real-time school code validation
+  // Real-time school code / activation code validation
   const handleSchoolCodeChange = async (val: string) => {
     setSchoolCodeInput(val);
     setCodeError(null);
@@ -73,6 +74,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     if (cleaned.length >= 3) {
       setIsValidatingCode(true);
       try {
+        // 1. Check if input is an Activation Code (CW-ACT-...)
+        if (cleaned.toUpperCase().startsWith('CW-ACT-') || cleaned.toUpperCase().startsWith('ACT-')) {
+          const act = await validateActivationCode(cleaned);
+          if (act) {
+            setValidatedSchool({
+              id: act.schoolId,
+              bestuurId: act.bestuurId,
+              name: act.schoolName,
+              schoolName: act.schoolName,
+              schoolCode: cleaned.toUpperCase(),
+              city: 'Gekoppeld via activeringscode',
+              sector: act.targetSector,
+              isActive: true,
+              assignedModules: act.assignedModules,
+              createdAt: act.createdAt,
+            });
+            setCodeError(null);
+            setTargetSector(act.targetSector);
+            if (act.targetFunction && act.targetFunction !== 'alle') {
+              setSelectedRole(act.targetFunction as UserRole);
+            }
+            return;
+          }
+        }
+
+        // 2. Standard School Code validation in Firebase Firestore
         const school = await validateSchoolCode(cleaned);
         if (school) {
           setValidatedSchool(school);
@@ -82,8 +109,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           }
         } else {
           setValidatedSchool(null);
-          if (cleaned.length >= 6) {
-            setCodeError('Schoolcode niet gevonden. Controleer de code met uw school of Cloudwise.');
+          if (cleaned.length >= 5) {
+            setCodeError('Code niet gevonden. Voer een geldige schoolcode (#...) of activeringscode (CW-ACT-...) in.');
           }
         }
       } catch (e) {
@@ -464,9 +491,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     className="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-[#00b6ed] outline-none"
                   >
                     <option value="leerkracht">Leerkracht / Docent</option>
+                    <option value="directie">Directie / Schoolleider</option>
+                    <option value="oop_lesgevend">OOP (wel lesgevend)</option>
+                    <option value="oop_niet_lesgevend">OOP (niet lesgevend)</option>
                     <option value="ict_coordinator">ICT-coördinator / iCoach</option>
                     <option value="intern_begeleider">Intern Begeleider (IB'er)</option>
-                    <option value="directie">Directie / Schoolleider</option>
                     <option value="leerkrachtondersteuner">Onderwijsassistent / Ondersteuner</option>
                     <option value="overig">Overig</option>
                   </select>

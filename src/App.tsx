@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { AnswersMap, AssessmentResult, SavedAssessment, Question, UserProfile, AppUser } from './types';
-import { QUESTIONS, getShuffledQuestions } from './data/questionsData';
+import { AnswersMap, AssessmentResult, SavedAssessment, Question, UserProfile, AppUser, School } from './types';
+import { QUESTIONS, getShuffledQuestions, buildAssessmentQuestions } from './data/questionsData';
 import { calculateAssessmentResults } from './data/feedbackEngine';
 import { Header } from './components/Header';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -11,6 +11,7 @@ import { ResultsView } from './components/ResultsView';
 import { SavedResultsView } from './components/SavedResultsView';
 import { AuthModal } from './components/AuthModal';
 import { CloudwiseAdminModal } from './components/CloudwiseAdminModal';
+import { SchoolAccountModal } from './components/SchoolAccountModal';
 import {
   auth,
   getUserProfile,
@@ -18,6 +19,9 @@ import {
   checkUserIsAdmin,
   validateSchoolCode,
   getUserAssessments,
+  saveCandidateProgress,
+  getCandidateProgress,
+  DEFAULT_BESTUREN,
 } from './services/firebase';
 
 const CURRENT_STATE_STORAGE_KEY = 'cloudwise_dg_current_state_v4';
@@ -54,10 +58,11 @@ export default function App() {
   const [isNavigatorOpen, setIsNavigatorOpen] = useState<boolean>(false);
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
 
-  // Authentication & Cloudwise Admin states
+  // Authentication & Cloudwise Admin & School Account states
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isCloudwiseAdminOpen, setIsCloudwiseAdminOpen] = useState<boolean>(false);
+  const [isSchoolAccountOpen, setIsSchoolAccountOpen] = useState<boolean>(false);
 
   // 1. Firebase Auth Listener
   useEffect(() => {
@@ -222,25 +227,42 @@ export default function App() {
     }
   }, [savedAssessments]);
 
-  // Handle start test CTA: Enforce account requirement!
+  // Handle start test CTA: Enforce account requirement & modular question building
   const handleStartTest = () => {
     if (!currentUser) {
       setIsAuthModalOpen(true);
       return;
     }
+    const userModules = currentUser?.assignedModules || ['kerndoelen'];
+    const userQuestions = buildAssessmentQuestions(userModules, 'cards');
+    setQuestions(userQuestions);
     setScreen('quiz');
     setActiveTab('test');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handler for selecting an option on multiple choice / self assessment
+  // Handler for selecting an option on multiple choice / self assessment / skill card
   const handleSelectOption = (optionId: string) => {
     const currentQ = questions[currentQuestionIndex];
     if (!currentQ) return;
-    setAnswers((prev) => ({
-      ...prev,
-      [currentQ.id]: optionId,
-    }));
+    setAnswers((prev) => {
+      const nextAnswers: AnswersMap = {
+        ...prev,
+        [currentQ.id]: optionId,
+      };
+
+      // If this is an individual skill card, map to skillItemId for compatibility
+      if (currentQ.type === 'skill' && currentQ.skillItemId) {
+        nextAnswers[currentQ.skillItemId] = optionId;
+        nextAnswers[`skill_${currentQ.skillItemId}`] = optionId;
+      }
+
+      // Auto-save progress to prevent data loss on network disruption
+      if (currentUser?.uid) {
+        saveCandidateProgress(currentUser.uid, currentQuestionIndex, nextAnswers);
+      }
+      return nextAnswers;
+    });
   };
 
   // Handler for toggling Question 1 checklist items
@@ -257,17 +279,26 @@ export default function App() {
         ? currentList.filter((id) => id !== itemId)
         : [...currentList, itemId];
 
-      return {
+      const nextAnswers: AnswersMap = {
         ...prev,
         [currentQ.id]: updated,
       };
+
+      if (currentUser?.uid) {
+        saveCandidateProgress(currentUser.uid, currentQuestionIndex, nextAnswers);
+      }
+      return nextAnswers;
     });
   };
 
   // Move to next question or complete assessment
   const handleNext = () => {
     if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex((prev) => prev + 1);
+      const nextIdx = currentQuestionIndex + 1;
+      setCurrentQuestionIndex(nextIdx);
+      if (currentUser?.uid) {
+        saveCandidateProgress(currentUser.uid, nextIdx, answers);
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       // Calculate results and save to archive + Firebase Firestore
@@ -275,8 +306,12 @@ export default function App() {
         fullName: currentUser?.displayName || 'Deelnemer',
         email: currentUser?.email,
         schoolName: currentUser?.schoolName || 'Het Mozaïek',
+        schoolId: currentUser?.schoolId,
+        bestuurId: currentUser?.bestuurId,
         role: currentUser?.role || 'leerkracht',
         targetGroup: targetSector,
+        assignedModules: currentUser?.assignedModules || ['kerndoelen'],
+        activationCode: currentUser?.activationCode,
       };
 
       const calculated = calculateAssessmentResults(activeParticipant, answers);
@@ -292,11 +327,13 @@ export default function App() {
         userId: currentUser?.uid || 'deelnemer',
         user: activeParticipant,
         createdAt: new Date().toISOString(),
+        expiresAt: finalResult.expiresAt,
         result: finalResult,
         answers: answers,
         schoolId: currentUser?.schoolId,
         schoolCode: currentUser?.schoolCode,
         schoolName: currentUser?.schoolName,
+        bestuurId: currentUser?.bestuurId,
       };
 
       setResults(finalResult);
@@ -452,6 +489,7 @@ export default function App() {
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onSignOut={handleSignOut}
         onOpenCloudwiseAdmin={() => setIsCloudwiseAdminOpen(true)}
+        onOpenSchoolAccount={() => setIsSchoolAccountOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -547,6 +585,27 @@ export default function App() {
           setCurrentUser(user);
         }}
       />
+
+      {/* School Account & Activation Code Management Modal (RBAC Niveau 2) */}
+      {isSchoolAccountOpen && (
+        <SchoolAccountModal
+          isOpen={isSchoolAccountOpen}
+          onClose={() => setIsSchoolAccountOpen(false)}
+          school={{
+            id: currentUser?.schoolId || 'school_mozaiek',
+            bestuurId: currentUser?.bestuurId || 'bestuur_opo_mh',
+            name: currentUser?.schoolName || 'Het Mozaïek',
+            schoolName: currentUser?.schoolName || 'Het Mozaïek',
+            schoolCode: currentUser?.schoolCode || '#SCOD2026MOZ',
+            city: 'Utrecht',
+            sector: (currentUser?.schoolSector || targetSector) as any,
+            isActive: true,
+            assignedModules: currentUser?.assignedModules || ['kerndoelen', 'parnassys', 'googledrive'],
+            createdAt: currentUser?.createdAt || new Date().toISOString(),
+          }}
+          currentUser={currentUser}
+        />
+      )}
 
       {/* Question Navigator Modal */}
       <QuestionNavigator

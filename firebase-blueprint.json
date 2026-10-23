@@ -99,6 +99,18 @@
     "/assessments/{assessmentId}": {
       "schema": "Assessment",
       "description": "Nulmeting scores voor individueel inzien en geaggregeerde Cloudwise schoolrapporten"
+    },
+    "/besturen/{bestuurId}": {
+      "schema": "School",
+      "description": "Onderwijsbesturen gekoppeld aan scholen en uiterste toetsdatum (deadline)"
+    },
+    "/activationCodes/{code}": {
+      "schema": "SchoolCode",
+      "description": "Activeringscodes met gekoppelde modules en doelgroep"
+    },
+    "/testProgress/{userId}": {
+      "schema": "Assessment",
+      "description": "Tussentijdse voortgangsopslag ter voorkoming van dataverlies"
     }
   }
 }

@@ -39,7 +39,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuth,
   onSignOut,
   onOpenCloudwiseAdmin,
-}) => {
+  onOpenSchoolAccount,
+}: HeaderProps & { onOpenSchoolAccount?: () => void }) => {
   const [logoError, setLogoError] = useState(false);
 
   return (
@@ -100,15 +101,27 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls & User Info */}
       <div className="flex items-center gap-3">
+        {/* Schoolaccount (RBAC Niveau 2) knop voor schoolleiders en admins */}
+        {currentUser && onOpenSchoolAccount && (currentUser.role === 'directie' || currentUser.role === 'ict_coordinator' || currentUser.isCloudwiseAdmin) && (
+          <button
+            onClick={onOpenSchoolAccount}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-1 hover:bg-sky-200 border border-primary/30 text-primary text-xs font-bold transition-all cursor-pointer shadow-xs"
+            title="Schoolaccount: Activeringscodes & Modules toewijzen"
+          >
+            <Building className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Schoolbeheer</span>
+          </button>
+        )}
+
         {/* Cloudwise Admin Access Badge / Button - Enkel zichtbaar wanneer ingelogd met beheeraccount */}
         {currentUser?.isCloudwiseAdmin && (
           <button
             onClick={onOpenCloudwiseAdmin}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-950 text-xs font-bold transition-all cursor-pointer shadow-xs"
-            title="Cloudwise Beheerder Portaal & Schoolrapportages"
+            title="Cloudwise Beheerder Portaal, Vragenbank & XLSX Exports"
           >
             <Shield className="w-3.5 h-3.5 text-amber-700" />
-            <span>Cloudwise Beheer</span>
+            <span>Admin</span>
           </button>
         )}
 

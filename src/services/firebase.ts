@@ -24,7 +24,18 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { AppUser, AssessmentResult, School, SchoolAggregateReport, SchoolCodeRecord, UserRole } from '../types';
+import {
+  AppUser,
+  AssessmentResult,
+  Bestuur,
+  ActivationCode,
+  School,
+  SchoolAggregateReport,
+  SchoolCodeRecord,
+  TargetFunctionRole,
+  UserRole,
+  BestuurAggregateReport,
+} from '../types';
 
 // 1. Initialize Firebase App and Services
 const app = initializeApp(firebaseConfig);
@@ -414,6 +425,8 @@ export async function seedInitialSchoolsInFirebase(): Promise<School[]> {
       schoolCode: '#SCOD2026SAF',
       city: 'Utrecht',
       sector: 'PO' as const,
+      bestuurId: 'bestuur_opo_mh',
+      bestuurName: 'Stichting Openbaar Onderwijs Midden-Holland',
       isActive: true,
       notes: 'Basisschool De Saffier - Utrecht',
     },
@@ -422,6 +435,8 @@ export async function seedInitialSchoolsInFirebase(): Promise<School[]> {
       schoolCode: '#SCOD2026MOZ',
       city: 'Utrecht',
       sector: 'PO' as const,
+      bestuurId: 'bestuur_opo_mh',
+      bestuurName: 'Stichting Openbaar Onderwijs Midden-Holland',
       isActive: true,
       notes: 'Basisschool Het Mozaïek - Utrecht',
     },
@@ -430,6 +445,8 @@ export async function seedInitialSchoolsInFirebase(): Promise<School[]> {
       schoolCode: '#SCOD2026RGB',
       city: 'Woerden',
       sector: 'PO' as const,
+      bestuurId: 'bestuur_cpo_randstad',
+      bestuurName: 'Christelijk Primair Onderwijs Randstad',
       isActive: true,
       notes: 'Basisschool De Regenboog - Woerden',
     },
@@ -438,6 +455,8 @@ export async function seedInitialSchoolsInFirebase(): Promise<School[]> {
       schoolCode: '#CLOUDWISE2026',
       city: 'Woerden',
       sector: 'PO/VO' as const,
+      bestuurId: 'bestuur_opo_mh',
+      bestuurName: 'Cloudwise Onderwijsadvies Beheer',
       isActive: true,
       notes: 'Interne testschool voor Cloudwise onderwijsadviseurs',
     },
@@ -620,3 +639,200 @@ export async function getAggregatedSchoolReport(
     recommendedCloudwiseWorkshops,
   };
 }
+
+// ================= 12. BESTUUR MANAGEMENT =================
+export const DEFAULT_BESTUREN: Bestuur[] = [
+  {
+    id: 'bestuur_opo_mh',
+    name: 'Stichting Openbaar Onderwijs Midden-Holland',
+    code: 'BST-OPO-MH',
+    contactEmail: 'bestuur@opo-mh.nl',
+    deadline: '2026-06-30',
+    schoolCount: 3,
+    candidateCount: 42,
+    createdAt: '2026-01-15T08:00:00Z',
+  },
+  {
+    id: 'bestuur_cpo_randstad',
+    name: 'Christelijk Primair Onderwijs Randstad',
+    code: 'BST-CPO-RS',
+    contactEmail: 'info@cpo-randstad.nl',
+    deadline: '2026-05-15',
+    schoolCount: 2,
+    candidateCount: 28,
+    createdAt: '2026-02-01T09:00:00Z',
+  },
+  {
+    id: 'bestuur_vo_midden',
+    name: 'Stichting Voortgezet Onderwijs Regio Midden',
+    code: 'BST-VO-MIDDEN',
+    contactEmail: 'secretariaat@vo-midden.nl',
+    deadline: '2026-07-01',
+    schoolCount: 2,
+    candidateCount: 65,
+    createdAt: '2026-02-10T10:00:00Z',
+  },
+];
+
+export async function getAllBesturen(): Promise<Bestuur[]> {
+  try {
+    const snap = await getDocs(collection(db, 'besturen'));
+    if (!snap.empty) {
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Bestuur));
+    }
+  } catch (err) {
+    console.warn('Could not load besturen from Firestore, using standard list:', err);
+  }
+  return DEFAULT_BESTUREN;
+}
+
+export async function updateBestuurDeadline(bestuurId: string, deadline: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'besturen', bestuurId), { deadline, updatedAt: new Date().toISOString() });
+  } catch (err) {
+    console.warn('Failed to update bestuur deadline in Firestore:', err);
+  }
+}
+
+export async function updateSchoolDeadline(schoolId: string, deadline: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'schools', schoolId), { deadline, updatedAt: new Date().toISOString() });
+  } catch (err) {
+    console.warn('Failed to update school deadline in Firestore:', err);
+  }
+}
+
+export async function updateSchoolModules(schoolId: string, assignedModules: string[]): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'schools', schoolId), { assignedModules, updatedAt: new Date().toISOString() });
+  } catch (err) {
+    console.warn('Failed to update school modules in Firestore:', err);
+  }
+}
+
+// ================= 13. ACTIVATION CODES & RBAC REGISTRATION =================
+export async function generateActivationCode(params: {
+  schoolId: string;
+  bestuurId: string;
+  schoolName: string;
+  targetSector: 'PO' | 'VO';
+  targetFunction: TargetFunctionRole | 'alle';
+  assignedModules: string[];
+  maxUses?: number;
+}): Promise<ActivationCode> {
+  const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const code = `CW-ACT-${randomSuffix}`;
+
+  const activationRecord: ActivationCode = {
+    code,
+    schoolId: params.schoolId,
+    bestuurId: params.bestuurId,
+    schoolName: params.schoolName,
+    targetSector: params.targetSector,
+    targetFunction: params.targetFunction,
+    assignedModules: params.assignedModules,
+    maxUses: params.maxUses || 50,
+    usedCount: 0,
+    isUsed: false,
+    createdAt: new Date().toISOString(),
+    createdByName: auth.currentUser?.email || 'Schoolaccount',
+  };
+
+  try {
+    await setDoc(doc(db, 'activationCodes', code), activationRecord);
+  } catch (err) {
+    console.warn('Could not write activationCode to Firestore:', err);
+  }
+
+  return activationRecord;
+}
+
+export async function validateActivationCode(code: string): Promise<ActivationCode | null> {
+  const clean = code.trim().toUpperCase();
+  try {
+    const snap = await getDoc(doc(db, 'activationCodes', clean));
+    if (snap.exists()) {
+      const data = snap.data() as ActivationCode;
+      if (data.maxUses && data.usedCount >= data.maxUses) {
+        return null; // Exhausted
+      }
+      return data;
+    }
+  } catch (err) {
+    console.warn('Error reading activation code from Firestore:', err);
+  }
+  return null;
+}
+
+export async function getSchoolActivationCodes(schoolId: string): Promise<ActivationCode[]> {
+  try {
+    const q = query(collection(db, 'activationCodes'), where('schoolId', '==', schoolId));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => d.data() as ActivationCode);
+  } catch (err) {
+    console.warn('Could not fetch school activation codes:', err);
+    return [];
+  }
+}
+
+// ================= 14. PROGRESS MANAGEMENT & TUSSENTIJDS OPSLAAN =================
+export async function saveCandidateProgress(
+  userId: string,
+  currentQuestionIndex: number,
+  answers: Record<string | number, any>
+): Promise<void> {
+  if (!userId) return;
+  const key = `cloudwise_progress_${userId}`;
+  try {
+    // 1. Local storage instant save (offline-resilient)
+    localStorage.setItem(key, JSON.stringify({ currentQuestionIndex, answers, savedAt: new Date().toISOString() }));
+  } catch {
+    // ignore localstorage quota errors
+  }
+
+  // 2. Firestore cloud backup
+  try {
+    await setDoc(doc(db, 'testProgress', userId), {
+      userId,
+      currentQuestionIndex,
+      answers,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+  } catch (err) {
+    // Non-blocking background error
+  }
+}
+
+export async function getCandidateProgress(
+  userId: string
+): Promise<{ currentQuestionIndex: number; answers: Record<string | number, any> } | null> {
+  if (!userId) return null;
+  const key = `cloudwise_progress_${userId}`;
+
+  // 1. Check local storage first
+  try {
+    const local = localStorage.getItem(key);
+    if (local) {
+      return JSON.parse(local);
+    }
+  } catch {
+    // fallback
+  }
+
+  // 2. Check Firestore
+  try {
+    const snap = await getDoc(doc(db, 'testProgress', userId));
+    if (snap.exists()) {
+      const data = snap.data();
+      return {
+        currentQuestionIndex: data.currentQuestionIndex || 0,
+        answers: data.answers || {},
+      };
+    }
+  } catch (err) {
+    // ignore
+  }
+
+  return null;
+}
+

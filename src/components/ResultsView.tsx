@@ -123,12 +123,15 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         {/* Header Section */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 md:mb-12 print:mb-8 gap-8">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className="bg-sky-1 text-on-primary-container font-label-sm text-xs px-3 py-1 rounded-full uppercase tracking-wider font-bold">
                 Cloudwise Nulmeting DG • {result.user.targetGroup || 'PO'}
               </span>
-              <span className="text-xs text-on-surface-variant">
-                Opgeslagen op {new Date().toLocaleDateString('nl-NL')}
+              <span className="text-xs text-on-surface-variant font-medium">
+                Opgeslagen op {result.completedAt || new Date().toLocaleDateString('nl-NL')}
+              </span>
+              <span className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                <span>⏱</span> Rapport 2 maanden beschikbaar {result.expiresAt ? `(tot ${result.expiresAt})` : ''}
               </span>
             </div>
             <h1 className="font-display-lg text-3xl sm:text-4xl md:text-5xl print:text-3xl text-on-background tracking-tight mb-3">
@@ -503,6 +506,51 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           </div>
         )}
       </section>
+
+      {/* ================= MODULAR STATISTICS SECTION ================= */}
+      {result.moduleScores && result.moduleScores.length > 0 && (
+        <section className="mb-10 bg-surface-container-lowest rounded-[24px] p-6 sm:p-8 ambient-shadow border border-[#e8e8e8]">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+            <div className="flex items-center gap-2">
+              <Layers className="w-5 h-5 text-purple-700" />
+              <h2 className="font-headline-md text-xl font-bold text-on-background">
+                Modulestatistieken (Aanvullende Modules)
+              </h2>
+            </div>
+            <span className="text-[11px] font-bold text-purple-800 bg-purple-100 px-3 py-1 rounded-full">
+              Eigen Statistiek • Beïnvloedt Kerndoelenscore Niet
+            </span>
+          </div>
+          <p className="text-xs text-on-surface-variant mb-6 leading-relaxed">
+            De score op onderstaande modules is gebaseerd op de modulaire niveaubepaling. Conform het toetsingskader beïnvloeden deze resultaten jouw landelijke kerndoelenscore niet, maar geven ze inzicht in jouw praktische toepassing van schoolsystemen.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {result.moduleScores.map((m) => (
+              <div key={m.moduleId} className="p-5 rounded-2xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-base text-on-background">{m.moduleName}</h3>
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                    {m.level} ({m.averageRating}/4.0)
+                  </span>
+                </div>
+                <p className="text-xs text-on-surface-variant mb-3 leading-relaxed">
+                  {m.feedback}
+                </p>
+                <div className="space-y-1">
+                  <span className="text-[11px] font-bold text-primary block uppercase tracking-wider">Aanbevolen acties:</span>
+                  {m.recommendations.map((rec, i) => (
+                    <div key={i} className="text-xs text-on-background flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      <span>{rec}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Primary Actions Bar */}
       <div className="flex flex-wrap items-center justify-center gap-4 mb-10 no-print">

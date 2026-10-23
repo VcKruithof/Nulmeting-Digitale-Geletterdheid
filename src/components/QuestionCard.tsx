@@ -1,5 +1,5 @@
-import React from 'react';
-import { ArrowLeft, ArrowRight, Check, ListFilter } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ArrowLeft, ArrowRight, Check, ListFilter, X, CheckCircle, ThumbsDown, ThumbsUp, HelpCircle } from 'lucide-react';
 import { Question } from '../types';
 import {
   getSectorCategoryBadge,
@@ -36,6 +36,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   const isLastQuestion = currentIndex === totalQuestions - 1;
   const isFirstQuestion = currentIndex === 0;
 
+  // Touch swipe support for skill questions
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
   const isOptionSelected = (optionId: string) => {
     if (typeof currentAnswer === 'string') {
       return currentAnswer === optionId;
@@ -51,8 +54,58 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   };
 
   const selectedChecklistCount = Array.isArray(currentAnswer) ? currentAnswer.length : 0;
-  const hasAnswered = question.type === 'checklist' ? true : Boolean(currentAnswer);
+  const isSkillQuestion = question.type === 'skill';
+  const hasAnswered =
+    question.type === 'checklist'
+      ? true
+      : isSkillQuestion
+      ? currentAnswer === 'ja' || currentAnswer === 'nog_niet' || currentAnswer === 'nee'
+      : Boolean(currentAnswer);
+
   const isChecklistView = question.type === 'checklist';
+
+  // Keyboard navigation for skill questions (ArrowLeft: "nog niet", ArrowRight: "ja")
+  useEffect(() => {
+    if (!isSkillQuestion) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        onSelectOption('nog_niet');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        onSelectOption('ja');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSkillQuestion, onSelectOption]);
+
+  // Touch handlers for mobile swipe
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isSkillQuestion) {
+      setTouchStartX(e.touches[0].clientX);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isSkillQuestion || touchStartX === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchEndX - touchStartX;
+
+    if (diff < -50) {
+      // Swiped left -> "Nog niet"
+      onSelectOption('nog_niet');
+    } else if (diff > 50) {
+      // Swiped right -> "Ja"
+      onSelectOption('ja');
+    }
+    setTouchStartX(null);
+  };
 
   // Compute dynamic badge & title based on targetGroup
   let displayCategoryBadge = question.categoryBadge;
@@ -90,9 +143,11 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
       {/* Test Card */}
       <article
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         className={`bg-surface-container-lowest rounded-[24px] ambient-shadow ${
           isChecklistView ? 'p-5 sm:p-7 md:p-8' : 'p-6 sm:p-8 md:p-[48px]'
-        } relative overflow-hidden border border-white/80`}
+        } relative overflow-hidden border border-white/80 transition-all`}
       >
         {/* Top Accent Line */}
         <div
@@ -125,8 +180,23 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           )}
           {question.type === 'self-assessment' && (
             <span className="inline-block text-[11px] font-bold text-tertiary uppercase tracking-wider bg-yellow-1/60 px-2.5 py-1 rounded-md mb-3">
-              Eigen Didactische Inschatting
+              Eigen Didactische Inschatting (Niveaubepaling)
             </span>
+          )}
+          {question.type === 'module-assessment' && (
+            <span className="inline-block text-[11px] font-bold text-purple-700 uppercase tracking-wider bg-purple-100 px-2.5 py-1 rounded-md mb-3">
+              Modulaire Niveaubepaling
+            </span>
+          )}
+          {question.type === 'skill' && (
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <span className="inline-block text-[11px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-3 py-1 rounded-md">
+                Praktijkvaardigheid • Beheersing
+              </span>
+              <span className="text-xs text-on-surface-variant hidden sm:inline-block">
+                Sneltoetsen: <kbd className="px-1.5 py-0.5 bg-gray-100 border rounded text-[11px] font-mono">←</kbd> Nog niet &nbsp;|&nbsp; <kbd className="px-1.5 py-0.5 bg-gray-100 border rounded text-[11px] font-mono">→</kbd> Ja
+              </span>
+            </div>
           )}
           {question.type === 'checklist' && (
             <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -179,58 +249,134 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           </h2>
         </div>
 
-        {/* ================= MULTIPLE CHOICE / SELF-ASSESSMENT OPTIONS ================= */}
-        {question.options && question.options.length > 0 && (
-          <form className="space-y-3.5 sm:space-y-4" id="question-form" onSubmit={(e) => e.preventDefault()}>
-            {question.options.map((opt) => {
-              const selected = isOptionSelected(opt.id);
-              return (
-                <label
-                  key={opt.id}
-                  onClick={() => onSelectOption(opt.id)}
-                  className={`option-card block cursor-pointer border rounded-xl p-4 sm:p-5 transition-all duration-300 relative group ${
-                    selected
-                      ? 'border-primary-container bg-sky-1/45 ring-1 ring-primary-container'
-                      : 'border-surface-container-high bg-surface-container-lowest hover:border-outline-variant hover:bg-surface-container-low/40'
+        {/* ================= 1. VAARDIGHEDEN: INDIVIDUELE KAART (SWIPE / LEFT-RIGHT) ================= */}
+        {question.type === 'skill' && (
+          <div className="my-6">
+            <p className="text-sm text-on-surface-variant mb-6 text-center">
+              Geef aan of je deze vaardigheid op dit moment beheerst en/of toepast in je onderwijspraktijk:
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto">
+              {/* NAAR LINKS: NOG NIET */}
+              <button
+                type="button"
+                onClick={() => onSelectOption('nog_niet')}
+                className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-3 text-center cursor-pointer group ${
+                  currentAnswer === 'nog_niet' || currentAnswer === 'nee'
+                    ? 'border-amber-500 bg-amber-50 shadow-md ring-2 ring-amber-400'
+                    : 'border-surface-container-high bg-surface-container-lowest hover:border-amber-300 hover:bg-amber-50/40'
+                }`}
+              >
+                <div
+                  className={`w-12 h-12 rounded-full flex items-center justify-center transition-transform group-hover:-translate-x-1 ${
+                    currentAnswer === 'nog_niet' || currentAnswer === 'nee'
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-surface-container text-on-surface-variant group-hover:bg-amber-100 group-hover:text-amber-800'
                   }`}
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 mt-0.5 sm:mt-1">
-                      <div
-                        className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
-                          selected
-                            ? 'border-primary-container bg-primary-container'
-                            : 'border-outline bg-surface-container-lowest group-hover:border-primary'
-                        }`}
-                      >
-                        {selected && <div className="w-2 h-2 rounded-full bg-white" />}
-                      </div>
-                      <input
-                        type="radio"
-                        name={`question-${question.id}`}
-                        value={opt.id}
-                        checked={selected}
-                        onChange={() => onSelectOption(opt.id)}
-                        className="sr-only"
-                      />
-                    </div>
-                    <div className="flex-grow">
-                      <span
-                        className={`font-body-lg text-base sm:text-lg block leading-normal ${
-                          selected ? 'font-semibold text-on-primary-container' : 'text-on-background'
-                        }`}
-                      >
-                        {opt.label}
-                      </span>
-                    </div>
-                  </div>
-                </label>
-              );
-            })}
-          </form>
+                  <ArrowLeft className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="block font-headline-sm text-lg font-bold text-on-background">
+                    Nog niet
+                  </span>
+                  <span className="text-xs text-on-surface-variant">
+                    Nog niet onder de knie of niet toegepast
+                  </span>
+                </div>
+              </button>
+
+              {/* NAAR RECHTS: JA */}
+              <button
+                type="button"
+                onClick={() => onSelectOption('ja')}
+                className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-3 text-center cursor-pointer group ${
+                  currentAnswer === 'ja'
+                    ? 'border-emerald-600 bg-emerald-50 shadow-md ring-2 ring-emerald-500'
+                    : 'border-surface-container-high bg-surface-container-lowest hover:border-emerald-300 hover:bg-emerald-50/40'
+                }`}
+              >
+                <div
+                  className={`w-12 h-12 rounded-full flex items-center justify-center transition-transform group-hover:translate-x-1 ${
+                    currentAnswer === 'ja'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-surface-container text-on-surface-variant group-hover:bg-emerald-100 group-hover:text-emerald-800'
+                  }`}
+                >
+                  <ArrowRight className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="block font-headline-sm text-lg font-bold text-on-background">
+                    Ja, dit kan ik
+                  </span>
+                  <span className="text-xs text-on-surface-variant">
+                    Beheers ik en pas ik zelfstandig toe
+                  </span>
+                </div>
+              </button>
+            </div>
+
+            <div className="mt-6 flex items-center justify-center gap-2 text-xs text-on-surface-variant/80">
+              <span className="inline-block w-2 h-2 rounded-full bg-primary" />
+              <span>Tip: op touchscreens kun je de kaart ook naar links of rechts swipen.</span>
+            </div>
+          </div>
         )}
 
-        {/* ================= QUESTION 1 CHECKLIST ITEMS (MULTI-COLUMN, ALL VISIBLE) ================= */}
+        {/* ================= 2. MULTIPLE CHOICE / SELF-ASSESSMENT OPTIONS ================= */}
+        {(question.type === 'knowledge' || question.type === 'self-assessment' || question.type === 'module-assessment') &&
+          question.options &&
+          question.options.length > 0 && (
+            <form className="space-y-3.5 sm:space-y-4" id="question-form" onSubmit={(e) => e.preventDefault()}>
+              {question.options.map((opt) => {
+                const selected = isOptionSelected(opt.id);
+                return (
+                  <label
+                    key={opt.id}
+                    onClick={() => onSelectOption(opt.id)}
+                    className={`option-card block cursor-pointer border rounded-xl p-4 sm:p-5 transition-all duration-300 relative group ${
+                      selected
+                        ? 'border-primary-container bg-sky-1/45 ring-1 ring-primary-container'
+                        : 'border-surface-container-high bg-surface-container-lowest hover:border-outline-variant hover:bg-surface-container-low/40'
+                    }`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0 mt-0.5 sm:mt-1">
+                        <div
+                          className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
+                            selected
+                              ? 'border-primary-container bg-primary-container'
+                              : 'border-outline bg-surface-container-lowest group-hover:border-primary'
+                          }`}
+                        >
+                          {selected && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                        <input
+                          type="radio"
+                          name={`question-${question.id}`}
+                          value={opt.id}
+                          checked={selected}
+                          onChange={() => onSelectOption(opt.id)}
+                          className="sr-only"
+                        />
+                      </div>
+                      <div className="flex-grow">
+                        <span
+                          className={`font-body-lg text-base sm:text-lg block leading-normal ${
+                            selected ? 'font-semibold text-on-primary-container' : 'text-on-background'
+                          }`}
+                        >
+                          {opt.label}
+                        </span>
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </form>
+          )}
+
+        {/* ================= 3. QUESTION 1 CHECKLIST ITEMS (MULTI-COLUMN, ALL VISIBLE) ================= */}
         {question.type === 'checklist' && question.checklistItems && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
             {question.checklistItems.map((item) => {
@@ -253,20 +399,26 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                       <div
                         className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
                           checked
-                            ? 'border-primary-container bg-primary-container text-white'
+                            ? 'border-primary-container bg-primary-container'
                             : 'border-outline bg-surface-container-lowest group-hover:border-primary'
                         }`}
                       >
-                        {checked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        {checked && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
                       </div>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => onToggleChecklistItem(item.id)}
+                        className="sr-only"
+                      />
                     </div>
-                    <div className="flex-grow min-w-0">
-                      <span className="inline-block text-[10px] font-bold text-primary uppercase tracking-wider bg-sky-1 px-2 py-0.5 rounded mb-1">
+                    <div className="flex-grow">
+                      <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-primary bg-sky-1 px-2 py-0.5 rounded mb-1">
                         {tagLabel}
                       </span>
                       <p
-                        className={`text-xs sm:text-[13px] leading-snug break-words ${
-                          checked ? 'font-semibold text-on-primary-container' : 'text-on-background'
+                        className={`font-body-md text-xs sm:text-sm leading-snug ${
+                          checked ? 'font-medium text-on-primary-container' : 'text-on-background'
                         }`}
                       >
                         {item.label}

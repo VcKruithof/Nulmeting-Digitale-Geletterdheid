@@ -1,4 +1,5 @@
-import { Question } from '../types';
+import { Question, UserProfile } from '../types';
+import { MODULAR_QUESTIONS } from './modulesData';
 
 export function shuffleArray<T>(array: T[]): T[] {
   const arr = [...array];
@@ -24,6 +25,52 @@ export function getShuffledQuestions(sourceList: Question[] = QUESTIONS): Questi
     }
     return q;
   });
+}
+
+/**
+ * Builds the assessment questions sequence for a user:
+ * 1. Skills: either offered individual card-by-card (Left: "nog niet", Right: "ja") or as checklist.
+ * 2. Knowledge questions (3 per subkerndoel).
+ * 3. Niveaubepaling self-assessment (1 per subkerndoel).
+ * 4. Modular questions for any assigned modules (ParnasSys, Magister, Teams, etc.).
+ */
+export function buildAssessmentQuestions(
+  assignedModules: string[] = ['kerndoelen'],
+  skillPresentation: 'cards' | 'checklist' = 'cards'
+): Question[] {
+  let baseQuestions: Question[] = [];
+
+  if (skillPresentation === 'cards') {
+    // Break question 1 into individual skill questions
+    const checklistItems = QUESTIONS[0].checklistItems || [];
+    const skillQuestions: Question[] = checklistItems.map((item, idx) => {
+      const sub = item.subcategoryId;
+      const kerndoelId = sub.startsWith('1') ? 'cat1' : sub.startsWith('2') ? 'cat2' : 'cat3';
+      return {
+        id: 1000 + idx + 1,
+        categoryBadge: `DEEL 1: VAARDIGHEDEN (${idx + 1}/${checklistItems.length})`,
+        subcategoryTitle: item.tag,
+        kerndoelId,
+        subcategoryId: item.subcategoryId,
+        type: 'skill' as const,
+        questionText: item.label,
+        skillItemId: item.id,
+        topAccentColor: '#00B6ED',
+      };
+    });
+
+    const knowledgeAndSelfAssessment = QUESTIONS.slice(1);
+    baseQuestions = [...skillQuestions, ...knowledgeAndSelfAssessment];
+  } else {
+    baseQuestions = [...QUESTIONS];
+  }
+
+  // Add assigned modular questions (if any)
+  const modularQuestionsToAdd = MODULAR_QUESTIONS.filter(
+    (q) => q.moduleId && assignedModules.includes(q.moduleId)
+  );
+
+  return [...baseQuestions, ...modularQuestionsToAdd];
 }
 
 export const QUESTIONS: Question[] = [

@@ -8,6 +8,7 @@ import {
   UserProfile,
 } from '../types';
 import { QUESTIONS } from './questionsData';
+import { calculateModuleScores } from './modulesData';
 import {
   RAW_SUBCATEGORIES,
   getSubcategoryCode,
@@ -98,8 +99,16 @@ export function calculateAssessmentResults(
 
   // Calculate Subcategory Scores
   const subcategoryScores: SubcategoryScore[] = RAW_SUBCATEGORIES.map((def) => {
-    // 1. Checklist items checked for this subcategory
-    const checklistCount = def.q1ItemIds.filter((itemId) => q1Checked.includes(itemId)).length;
+    // 1. Checklist / Individual Skill items checked for this subcategory
+    const checklistCount = def.q1ItemIds.filter((itemId) => {
+      if (q1Checked.includes(itemId)) return true;
+      if (answers[itemId] === 'ja') return true;
+      if (answers[`skill_${itemId}`] === 'ja') return true;
+      // Also check if any question keyed by number has this skill itemId and is answered 'ja'
+      return Object.entries(answers).some(([key, val]) => {
+        return (key === itemId || key.endsWith(`_${itemId}`)) && val === 'ja';
+      });
+    }).length;
     const checklistTotal = def.q1ItemIds.length;
 
     // 2. Knowledge questions
@@ -353,15 +362,29 @@ export function calculateAssessmentResults(
   // Concrete Action Steps
   const actionSteps = generateActionSteps(user.role, sortedSubcats);
 
+  // Modular scores (does not affect base kerndoelen percentage)
+  const assignedModules = user.assignedModules || ['kerndoelen'];
+  const moduleScores = calculateModuleScores(assignedModules, answers);
+
+  // 2 months retention guarantee calculation (AVG / GDPR requirement)
+  const now = new Date();
+  const twoMonthsLater = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const expiresAt = twoMonthsLater.toLocaleDateString('nl-NL', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
   return {
     user,
-    completedAt: new Date().toLocaleDateString('nl-NL', {
+    completedAt: now.toLocaleDateString('nl-NL', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     }),
+    expiresAt,
     overallScorePercentage,
     overallLevel,
     overallKnowledgeCorrect: totalKnowledgeCorrect,
@@ -377,6 +400,8 @@ export function calculateAssessmentResults(
     roleSpecificAdvice,
     actionSteps,
     selfCalibrationOverview,
+    moduleScores,
+    answers,
   };
 }
 

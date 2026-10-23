@@ -70,5 +70,23 @@ service cloud.firestore {
       allow read: if isCloudwiseAdmin();
       allow write: if false;
     }
+
+    // Besturen collectie
+    match /besturen/{bestuurId} {
+      allow read: if true;
+      allow write: if isCloudwiseAdmin();
+    }
+
+    // Activeringscodes collectie (Schoolaccount & Kandidaten)
+    match /activationCodes/{code} {
+      allow read: if true;
+      allow create, update: if isSignedIn();
+      allow delete: if isCloudwiseAdmin();
+    }
+
+    // Tussentijds opslaan / testvoortgang (Voorkomt dataverlies bij netwerkonderbrekingen)
+    match /testProgress/{userId} {
+      allow read, write: if isOwner(userId) || isCloudwiseAdmin();
+    }
   }
 }
