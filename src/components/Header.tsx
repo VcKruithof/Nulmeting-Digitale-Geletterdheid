@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import {
   ListFilter,
   RotateCcw,
-  User,
   LogOut,
   Building,
-  ShieldAlert,
   LogIn,
   Shield,
+  KeyRound,
+  Lock,
 } from 'lucide-react';
 import { AppUser } from '../types';
 
@@ -24,6 +24,8 @@ interface HeaderProps {
   onOpenAuth: () => void;
   onSignOut: () => void;
   onOpenCloudwiseAdmin: () => void;
+  onOpenSchoolAccount?: () => void;
+  onOpenSchoolCodeModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -40,7 +42,8 @@ export const Header: React.FC<HeaderProps> = ({
   onSignOut,
   onOpenCloudwiseAdmin,
   onOpenSchoolAccount,
-}: HeaderProps & { onOpenSchoolAccount?: () => void }) => {
+  onOpenSchoolCodeModal,
+}) => {
   const [logoError, setLogoError] = useState(false);
 
   return (
@@ -100,7 +103,19 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right Controls & User Info */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Button to enter schoolcode if logged in user does not have a school code yet */}
+        {currentUser && !currentUser.schoolCode && onOpenSchoolCodeModal && (
+          <button
+            onClick={onOpenSchoolCodeModal}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-950 text-xs font-bold transition-all cursor-pointer shadow-xs"
+            title="Schoolcode invoeren om de klaargezette test te ontgrendelen"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+            <span>Schoolcode invoeren</span>
+          </button>
+        )}
+
         {/* Schoolaccount (RBAC Niveau 2) knop voor schoolleiders en admins */}
         {currentUser && onOpenSchoolAccount && (currentUser.role === 'directie' || currentUser.role === 'ict_coordinator' || currentUser.isCloudwiseAdmin) && (
           <button
@@ -113,7 +128,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {/* Cloudwise Admin Access Badge / Button - Enkel zichtbaar wanneer ingelogd met beheeraccount */}
+        {/* Cloudwise Admin Access Badge / Button */}
         {currentUser?.isCloudwiseAdmin && (
           <button
             onClick={onOpenCloudwiseAdmin}
@@ -158,10 +173,27 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-xs font-bold text-gray-800 block truncate max-w-[140px]">
                 {currentUser.displayName || currentUser.email}
               </span>
-              <span className="text-[10px] text-[#006687] font-semibold flex items-center justify-end gap-1">
-                <Building className="w-2.5 h-2.5" />
-                {currentUser.schoolName || 'School'} ({currentUser.schoolCode})
-              </span>
+              {currentUser.schoolCode ? (
+                <button
+                  type="button"
+                  onClick={onOpenSchoolCodeModal}
+                  className="text-[10px] text-[#006687] hover:text-[#00435a] font-semibold flex items-center justify-end gap-1 cursor-pointer hover:underline"
+                  title="Klik om schoolcode te bekijken of wijzigen"
+                >
+                  <Building className="w-2.5 h-2.5" />
+                  <span>{currentUser.schoolName || 'School'} ({currentUser.schoolCode})</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onOpenSchoolCodeModal}
+                  className="text-[10px] text-amber-700 hover:text-amber-900 font-bold flex items-center justify-end gap-1 cursor-pointer hover:underline"
+                  title="Geen school gekoppeld. Klik om code in te voeren."
+                >
+                  <KeyRound className="w-2.5 h-2.5" />
+                  <span>Geen school gekoppeld</span>
+                </button>
+              )}
             </div>
 
             <button

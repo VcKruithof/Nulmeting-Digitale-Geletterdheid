@@ -8,7 +8,7 @@ service cloud.firestore {
     }
 
     // Role can only be assigned in Firebase.
-    // Vincent Kruithof (v.kruithof@edu.cloudwise.nl) is the designated initial administrator.
+    // Cloudwise Beheerder (v.kruithof@edu.cloudwise.nl) is the designated initial administrator.
     // Additional administrators can ONLY be granted by adding their UID or email to the /admins collection in Firebase.
     function isCloudwiseAdmin() {
       return isSignedIn() && (

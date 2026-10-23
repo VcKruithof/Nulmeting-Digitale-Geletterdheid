@@ -16,6 +16,8 @@ import {
   UserCheck,
   ShieldCheck,
   Lock,
+  Unlock,
+  Layers,
 } from 'lucide-react';
 import { AppUser } from '../types';
 
@@ -25,6 +27,7 @@ interface WelcomeScreenProps {
   hasSavedAssessment: boolean;
   currentUser: AppUser | null;
   onOpenAuth: () => void;
+  onOpenSchoolCodeModal: () => void;
   onStart: () => void;
   onViewResults: () => void;
   onDeleteAndRestart?: () => void;
@@ -36,11 +39,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   hasSavedAssessment,
   currentUser,
   onOpenAuth,
+  onOpenSchoolCodeModal,
   onStart,
   onViewResults,
   onDeleteAndRestart,
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const hasSchoolLinked = Boolean(currentUser?.schoolCode && currentUser?.schoolId);
 
   return (
     <div className="w-full flex-grow pt-24 sm:pt-28 pb-16 px-4 sm:px-8 md:px-10 flex flex-col items-center justify-center relative overflow-hidden">
@@ -55,7 +61,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <div className="inline-flex items-center gap-2 bg-yellow-1 px-4 py-2 rounded-full w-max shadow-xs">
             <Star className="w-4 h-4 text-tertiary fill-current" />
             <span className="font-label-md text-label-md text-on-tertiary-container uppercase tracking-wider">
-              Nieuwe Assessment 2025/2026
+              Nieuw Assessment 2025/2026
             </span>
           </div>
 
@@ -86,35 +92,75 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             kerndoelen.
           </p>
 
-          {/* User Account / Schoolcode Requirement Card */}
-          {currentUser ? (
+          {/* 3-State Account Status Card */}
+          {currentUser && hasSchoolLinked ? (
+            /* STATE 1: Logged in AND Schoolcode linked (Unlocked) */
             <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-start gap-3 max-w-md animate-fadeIn">
               <UserCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-              <div className="text-xs space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-sm text-emerald-900">
-                  <span>Ingelogd als {currentUser.displayName}</span>
+              <div className="text-xs space-y-1.5 w-full">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-emerald-900">
+                    Ingelogd als {currentUser.displayName}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onOpenSchoolCodeModal}
+                    className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                  >
+                    Wijzigen
+                  </button>
                 </div>
-                <div className="text-emerald-700 flex items-center gap-1">
+                <div className="text-emerald-800 flex items-center gap-1.5 flex-wrap">
                   <Building className="w-3.5 h-3.5" />
                   <span>School: <strong>{currentUser.schoolName}</strong></span>
-                  <span className="font-mono bg-emerald-200/60 px-1.5 py-0.2 rounded font-bold">
+                  <span className="font-mono bg-emerald-200/80 text-emerald-900 px-1.5 py-0.2 rounded font-bold text-[11px]">
                     {currentUser.schoolCode}
                   </span>
                 </div>
-                <p className="text-[11px] text-emerald-800">
-                  Jouw resultaten tellen automatisch mee in het geaggregeerde Cloudwise schoolrapport.
+                {currentUser.assignedModules && currentUser.assignedModules.length > 0 && (
+                  <div className="flex items-center gap-1 text-[11px] text-emerald-800 pt-0.5">
+                    <Layers className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                    <span>Klaargezette modules: <strong>{currentUser.assignedModules.join(', ')}</strong></span>
+                  </div>
+                )}
+                <p className="text-[11px] text-emerald-800 pt-0.5">
+                  ✓ Toets ontgrendeld. Uw resultaten tellen mee in het Cloudwise schoolrapport.
                 </p>
               </div>
             </div>
+          ) : currentUser && !hasSchoolLinked ? (
+            /* STATE 2: Logged in BUT NO Schoolcode linked yet (Locked) */
+            <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 flex items-start gap-3 max-w-md animate-fadeIn shadow-xs">
+              <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-2 w-full">
+                <div>
+                  <span className="font-bold text-sm text-amber-950 block">
+                    Toets Vergrendeld • Koppel uw Schoolcode
+                  </span>
+                  <p className="text-amber-800 leading-relaxed mt-0.5">
+                    Welkom, <strong>{currentUser.displayName}</strong>! Uw account is actief. Voer nu uw schoolcode in om de klaargezette nulmeting en modules voor uw school te ontgrendelen.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onOpenSchoolCodeModal}
+                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Schoolcode Invoeren & Ontgrendelen</span>
+                </button>
+              </div>
+            </div>
           ) : (
-            <div className="p-4 rounded-2xl bg-sky-50 border-2 border-[#00b6ed]/40 text-[#00435a] flex items-start gap-3 max-w-md">
+            /* STATE 3: Unauthenticated */
+            <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-[#00435a] flex items-start gap-3 max-w-md">
               <KeyRound className="w-5 h-5 text-[#006687] shrink-0 mt-0.5" />
               <div className="text-xs space-y-1">
                 <span className="font-bold text-sm block text-[#00435a]">
-                  Account & Schoolcode Vereist
+                  Account Aanmaken & Schoolcode Koppelen
                 </span>
                 <p className="text-gray-700 leading-relaxed">
-                  Om de test uit te voeren moet u ingelogd zijn met een account dat gekoppeld is aan een geldige <strong>schoolcode</strong>.
+                  Maak eerst een account aan of log in. Zodra u bent ingelogd, voert u uw unieke schoolcode in om de klaargezette test en modules te ontgrendelen.
                 </p>
               </div>
             </div>
@@ -125,12 +171,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             const isCloudwiseAdmin = currentUser?.isCloudwiseAdmin === true;
             const schoolSector = currentUser?.schoolSector;
 
-            // If user is Cloudwise Admin or not logged in, both are selectable.
-            // If school is specifically 'PO': PO allowed, VO visible but NOT selectable.
-            // If school is specifically 'VO': VO allowed, PO visible but NOT selectable.
-            // If school is 'PO/VO': both PO and VO are selectable.
-            const isPOAllowed = isCloudwiseAdmin || !schoolSector || schoolSector === 'PO' || schoolSector === 'PO/VO';
-            const isVOAllowed = isCloudwiseAdmin || !schoolSector || schoolSector === 'VO' || schoolSector === 'PO/VO';
+            const isPOAllowed = isCloudwiseAdmin || !hasSchoolLinked || !schoolSector || schoolSector === 'PO' || schoolSector === 'PO/VO';
+            const isVOAllowed = isCloudwiseAdmin || !hasSchoolLinked || !schoolSector || schoolSector === 'VO' || schoolSector === 'PO/VO';
 
             return (
               <div className="bg-surface-container-low p-3.5 rounded-2xl border border-outline-variant/60 max-w-md">
@@ -139,7 +181,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     <GraduationCap className="w-3.5 h-3.5 text-primary" />
                     <span>Kies jouw onderwijssector:</span>
                   </span>
-                  {currentUser && schoolSector && (
+                  {currentUser && schoolSector && hasSchoolLinked && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-100 text-sky-800">
                       School: {schoolSector}
                     </span>
@@ -180,8 +222,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   </button>
                 </div>
 
-                {/* Status explanation */}
-                {currentUser && schoolSector && schoolSector !== 'PO/VO' && !isCloudwiseAdmin && (
+                {currentUser && schoolSector && schoolSector !== 'PO/VO' && !isCloudwiseAdmin && hasSchoolLinked && (
                   <p className="text-[11px] text-gray-500 mt-2 flex items-center gap-1.5">
                     <Lock className="w-3 h-3 text-gray-400 shrink-0" />
                     <span>
@@ -189,7 +230,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     </span>
                   </p>
                 )}
-                {currentUser && (schoolSector === 'PO/VO' || isCloudwiseAdmin) && (
+                {currentUser && (schoolSector === 'PO/VO' || isCloudwiseAdmin) && hasSchoolLinked && (
                   <p className="text-[11px] text-[#006687] mt-2 font-medium flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#006687] shrink-0" />
                     <span>Combinatieschool (PO & VO): u kunt vrij schakelen tussen beide sectoren.</span>
@@ -234,13 +275,23 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 </button>
               </>
             ) : !currentUser ? (
-              /* When not logged in, prompt to log in / register with schoolcode */
+              /* When not logged in, prompt to log in / create account */
               <button
                 onClick={onOpenAuth}
                 className="bg-[#006687] hover:bg-[#00506b] text-white font-label-md text-label-md py-4 px-8 rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-2.5 font-bold cursor-pointer group"
               >
                 <LogIn className="w-4 h-4" />
-                <span>Inloggen / Account Maken met Schoolcode</span>
+                <span>Inloggen / Account Maken</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
+            ) : !hasSchoolLinked ? (
+              /* When logged in but no school code entered yet */
+              <button
+                onClick={onOpenSchoolCodeModal}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-label-md text-label-md py-4 px-8 rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-2.5 font-bold cursor-pointer group"
+              >
+                <Unlock className="w-5 h-5" />
+                <span>Toets Ontgrendelen met Schoolcode</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
             ) : (

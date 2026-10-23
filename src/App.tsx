@@ -10,11 +10,13 @@ import { QuestionNavigator } from './components/QuestionNavigator';
 import { ResultsView } from './components/ResultsView';
 import { SavedResultsView } from './components/SavedResultsView';
 import { AuthModal } from './components/AuthModal';
+import { EnterSchoolCodeModal } from './components/EnterSchoolCodeModal';
 import { CloudwiseAdminModal } from './components/CloudwiseAdminModal';
 import { SchoolAccountModal } from './components/SchoolAccountModal';
 import {
   auth,
   getUserProfile,
+  saveUserProfile,
   saveAssessmentRecord,
   checkUserIsAdmin,
   validateSchoolCode,
@@ -61,6 +63,7 @@ export default function App() {
   // Authentication & Cloudwise Admin & School Account states
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isEnterSchoolCodeOpen, setIsEnterSchoolCodeOpen] = useState<boolean>(false);
   const [isCloudwiseAdminOpen, setIsCloudwiseAdminOpen] = useState<boolean>(false);
   const [isSchoolAccountOpen, setIsSchoolAccountOpen] = useState<boolean>(false);
 
@@ -94,6 +97,15 @@ export default function App() {
 
             setCurrentUser(updatedUser);
 
+            // Rebuild modular questions if schoolcode is present
+            if (profile.schoolCode) {
+              const userModules = profile.assignedModules && profile.assignedModules.length > 0
+                ? profile.assignedModules
+                : ['kerndoelen'];
+              const userQuestions = buildAssessmentQuestions(userModules, 'cards');
+              setQuestions(userQuestions);
+            }
+
             // Fetch user's saved assessments from Firestore
             try {
               const userAssessments = await getUserAssessments(firebaseUser.uid);
@@ -121,7 +133,7 @@ export default function App() {
               const adminUser: AppUser = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email || '',
-                displayName: firebaseUser.displayName || 'Cloudwise Beheerder',
+                displayName: firebaseUser.displayName || 'Robin van der Meer (Beheerder)',
                 role: 'directie',
                 schoolId: 'cloudwise_beheer',
                 schoolCode: '#BEHEER',
@@ -130,11 +142,27 @@ export default function App() {
                 isCloudwiseAdmin: true,
                 createdAt: new Date().toISOString(),
               };
+              await saveUserProfile(adminUser);
               setCurrentUser(adminUser);
             } else {
-              // Regular users must register with a valid schoolcode
-              setCurrentUser(null);
-              setIsAuthModalOpen(true);
+              // Create default candidate profile without schoolcode so user is logged in
+              const defaultUser: AppUser = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                displayName: firebaseUser.displayName || 'Onderwijsprofessional',
+                role: 'leerkracht',
+                schoolId: '',
+                schoolCode: '',
+                schoolName: '',
+                schoolSector: 'PO',
+                targetSector: 'PO',
+                assignedModules: ['kerndoelen'],
+                isCloudwiseAdmin: false,
+                isActivated: false,
+                createdAt: new Date().toISOString(),
+              };
+              await saveUserProfile(defaultUser);
+              setCurrentUser(defaultUser);
             }
           }
         } catch (e) {
@@ -227,10 +255,26 @@ export default function App() {
     }
   }, [savedAssessments]);
 
-  // Handle start test CTA: Enforce account requirement & modular question building
+  // Handle schoolcode linked & test unlocked
+  const handleSchoolCodeLinked = (updatedUser: AppUser, _school: School) => {
+    setCurrentUser(updatedUser);
+    const userModules = updatedUser.assignedModules && updatedUser.assignedModules.length > 0
+      ? updatedUser.assignedModules
+      : ['kerndoelen'];
+    const userQuestions = buildAssessmentQuestions(userModules, 'cards');
+    setQuestions(userQuestions);
+    const resolvedSector = updatedUser.schoolSector === 'VO' ? 'VO' : 'PO';
+    setTargetSector(resolvedSector);
+  };
+
+  // Handle start test CTA: Enforce account requirement & schoolcode unlock
   const handleStartTest = () => {
     if (!currentUser) {
       setIsAuthModalOpen(true);
+      return;
+    }
+    if (!currentUser.schoolCode || !currentUser.schoolId) {
+      setIsEnterSchoolCodeOpen(true);
       return;
     }
     const userModules = currentUser?.assignedModules || ['kerndoelen'];
@@ -490,6 +534,7 @@ export default function App() {
         onSignOut={handleSignOut}
         onOpenCloudwiseAdmin={() => setIsCloudwiseAdminOpen(true)}
         onOpenSchoolAccount={() => setIsSchoolAccountOpen(true)}
+        onOpenSchoolCodeModal={() => setIsEnterSchoolCodeOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -501,6 +546,7 @@ export default function App() {
             hasSavedAssessment={currentUser ? savedAssessments.length > 0 : false}
             currentUser={currentUser}
             onOpenAuth={() => setIsAuthModalOpen(true)}
+            onOpenSchoolCodeModal={() => setIsEnterSchoolCodeOpen(true)}
             onStart={handleStartTest}
             onViewResults={() => {
               if (!currentUser) {
@@ -558,7 +604,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Auth & Schoolcode Modal */}
+      {/* Auth Modal (Account registration & login - no schoolcode required during registration) */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
@@ -572,7 +618,21 @@ export default function App() {
           } else if (user.targetSector) {
             setTargetSector(user.targetSector);
           }
+          // If the user does not have a school code linked yet, open EnterSchoolCodeModal to unlock their test!
+          if (!user.schoolCode && !user.isCloudwiseAdmin) {
+            setTimeout(() => {
+              setIsEnterSchoolCodeOpen(true);
+            }, 300);
+          }
         }}
+      />
+
+      {/* Schoolcode Entry & Unlock Assessment Modal */}
+      <EnterSchoolCodeModal
+        isOpen={isEnterSchoolCodeOpen}
+        onClose={() => setIsEnterSchoolCodeOpen(false)}
+        currentUser={currentUser}
+        onSuccess={handleSchoolCodeLinked}
       />
 
       {/* Cloudwise Admin & School Reports Modal */}

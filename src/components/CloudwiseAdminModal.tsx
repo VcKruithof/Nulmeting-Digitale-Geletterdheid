@@ -248,7 +248,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
         profile = {
           uid: res.user.uid,
           email: res.user.email || '',
-          displayName: res.user.displayName || 'Vincent Kruithof (Beheerder)',
+          displayName: res.user.displayName || 'Robin van der Meer (Beheerder)',
           role: 'directie',
           schoolId: 'cloudwise_hq',
           schoolCode: '#BEHEER',

@@ -8,28 +8,23 @@ import {
 import {
   auth,
   googleProvider,
-  validateSchoolCode,
-  validateActivationCode,
   saveUserProfile,
   getUserProfile,
   checkUserIsAdmin,
-  normalizeSchoolCode,
 } from '../services/firebase';
-import { AppUser, School, UserRole } from '../types';
+import { AppUser, UserRole } from '../types';
 import {
-  KeyRound,
   Mail,
   Lock,
   User,
-  Building2,
-  CheckCircle2,
   AlertCircle,
   X,
-  Sparkles,
   ArrowRight,
   ShieldCheck,
-  School as SchoolIcon,
-  HelpCircle,
+  GraduationCap,
+  Sparkles,
+  KeyRound,
+  Info,
 } from 'lucide-react';
 
 interface AuthModalProps {
@@ -51,77 +46,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [schoolCodeInput, setSchoolCodeInput] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('leerkracht');
   const [targetSector, setTargetSector] = useState<'PO' | 'VO'>('PO');
-
-  // School validation state
-  const [validatedSchool, setValidatedSchool] = useState<School | null>(null);
-  const [isValidatingCode, setIsValidatingCode] = useState(false);
-  const [codeError, setCodeError] = useState<string | null>(null);
 
   // General auth state
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
   if (!isOpen) return null;
-
-  // Real-time school code / activation code validation
-  const handleSchoolCodeChange = async (val: string) => {
-    setSchoolCodeInput(val);
-    setCodeError(null);
-    const cleaned = val.trim();
-    if (cleaned.length >= 3) {
-      setIsValidatingCode(true);
-      try {
-        // 1. Check if input is an Activation Code (CW-ACT-...)
-        if (cleaned.toUpperCase().startsWith('CW-ACT-') || cleaned.toUpperCase().startsWith('ACT-')) {
-          const act = await validateActivationCode(cleaned);
-          if (act) {
-            setValidatedSchool({
-              id: act.schoolId,
-              bestuurId: act.bestuurId,
-              name: act.schoolName,
-              schoolName: act.schoolName,
-              schoolCode: cleaned.toUpperCase(),
-              city: 'Gekoppeld via activeringscode',
-              sector: act.targetSector,
-              isActive: true,
-              assignedModules: act.assignedModules,
-              createdAt: act.createdAt,
-            });
-            setCodeError(null);
-            setTargetSector(act.targetSector);
-            if (act.targetFunction && act.targetFunction !== 'alle') {
-              setSelectedRole(act.targetFunction as UserRole);
-            }
-            return;
-          }
-        }
-
-        // 2. Standard School Code validation in Firebase Firestore
-        const school = await validateSchoolCode(cleaned);
-        if (school) {
-          setValidatedSchool(school);
-          setCodeError(null);
-          if (school.sector === 'PO' || school.sector === 'VO') {
-            setTargetSector(school.sector);
-          }
-        } else {
-          setValidatedSchool(null);
-          if (cleaned.length >= 5) {
-            setCodeError('Code niet gevonden. Voer een geldige schoolcode (#...) of activeringscode (CW-ACT-...) in.');
-          }
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setIsValidatingCode(false);
-      }
-    } else {
-      setValidatedSchool(null);
-    }
-  };
 
   // Handle Login
   const handleLogin = async (e: React.FormEvent) => {
@@ -139,7 +71,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           profile = {
             uid: cred.user.uid,
             email: cred.user.email || email,
-            displayName: cred.user.displayName || 'Cloudwise Beheerder',
+            displayName: cred.user.displayName || 'Robin van der Meer (Beheerder)',
             role: 'directie',
             schoolId: 'cloudwise_beheer',
             schoolCode: '#BEHEER',
@@ -150,10 +82,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           };
           await saveUserProfile(profile);
         } else {
-          setMode('register');
-          setAuthError('Voer uw unieke schoolcode in om uw account te voltooien.');
-          setIsLoading(false);
-          return;
+          // Normal user without a profile yet: create profile with empty school code
+          profile = {
+            uid: cred.user.uid,
+            email: cred.user.email || email.trim(),
+            displayName: cred.user.displayName || 'Onderwijsprofessional',
+            role: 'leerkracht',
+            schoolId: '',
+            schoolCode: '',
+            schoolName: '',
+            schoolSector: 'PO',
+            targetSector: 'PO',
+            assignedModules: ['kerndoelen'],
+            isCloudwiseAdmin: false,
+            isActivated: false,
+            createdAt: new Date().toISOString(),
+          };
+          await saveUserProfile(profile);
         }
       } else {
         profile.isCloudwiseAdmin = isAdmin || profile.isCloudwiseAdmin;
@@ -163,10 +108,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onClose();
     } catch (err: any) {
       console.error(err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setAuthError('Onjuist e-mailadres of wachtwoord. Probeer opnieuw of maak een nieuw account aan.');
+      if (
+        err.code === 'auth/user-not-found' ||
+        err.code === 'auth/wrong-password' ||
+        err.code === 'auth/invalid-credential'
+      ) {
+        setAuthError('Onjuist e-mailadres of wachtwoord. Probeer het opnieuw of maak een nieuw account aan.');
       } else if (err.code === 'auth/operation-not-allowed') {
-        setAuthError('Inloggen met e-mail/wachtwoord is momenteel niet ingeschakeld. U kunt direct inloggen met uw Google-account of contact opnemen met Cloudwise.');
+        setAuthError('Inloggen met e-mail/wachtwoord is momenteel niet ingeschakeld. U kunt inloggen met Google.');
       } else if (err.code === 'auth/invalid-email') {
         setAuthError('Voer een geldig e-mailadres in.');
       } else {
@@ -177,16 +126,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  // Handle Registration
+  // Handle Registration (No school code required during registration!)
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
-
-    // Strict requirement: school code MUST be validated
-    if (!validatedSchool) {
-      setCodeError('Een geldige schoolcode is verplicht om een account aan te maken.');
-      return;
-    }
 
     if (!fullName.trim()) {
       setAuthError('Vul uw volledige naam in.');
@@ -204,23 +147,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
       await updateProfile(cred.user, { displayName: fullName.trim() });
 
-      const resolvedSchoolName = validatedSchool.name || validatedSchool.schoolName || 'School';
-      const resolvedSchoolSector = (validatedSchool.sector as 'PO' | 'VO' | 'PO/VO') || 'PO';
-      let effectiveTargetSector: 'PO' | 'VO' = targetSector;
-      if (resolvedSchoolSector === 'PO') effectiveTargetSector = 'PO';
-      if (resolvedSchoolSector === 'VO') effectiveTargetSector = 'VO';
-
       const newProfile: AppUser = {
         uid: cred.user.uid,
         email: cred.user.email || email.trim(),
         displayName: fullName.trim(),
         role: selectedRole,
-        schoolId: validatedSchool.id,
-        schoolCode: normalizeSchoolCode(validatedSchool.schoolCode),
-        schoolName: resolvedSchoolName,
-        schoolSector: resolvedSchoolSector,
-        targetSector: effectiveTargetSector,
-        isCloudwiseAdmin: false, // Strict: Never assigned on registration. Only granted in Firebase.
+        schoolId: '',
+        schoolCode: '',
+        schoolName: '',
+        schoolSector: targetSector,
+        targetSector: targetSector,
+        assignedModules: ['kerndoelen'],
+        isCloudwiseAdmin: false,
+        isActivated: false,
         createdAt: new Date().toISOString(),
       };
 
@@ -232,7 +171,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (err.code === 'auth/email-already-in-use') {
         setAuthError('Dit e-mailadres is al in gebruik. Kies hierboven voor "Inloggen".');
       } else if (err.code === 'auth/operation-not-allowed') {
-        setAuthError('Registreren met e-mail/wachtwoord is momenteel niet geactiveerd. U kunt direct inloggen met uw Google-account!');
+        setAuthError('Registreren met e-mail/wachtwoord is momenteel niet geactiveerd. U kunt direct inloggen met Google!');
       } else {
         setAuthError('Account aanmaken mislukt: ' + (err.message || 'Controleer uw invoer'));
       }
@@ -241,7 +180,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  // Handle Google Sign-In
+  // Handle Google Sign-In (No school code required beforehand)
   const handleGoogleSignIn = async () => {
     setAuthError(null);
     setIsLoading(true);
@@ -252,34 +191,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const isAdmin = await checkUserIsAdmin(res.user.uid, res.user.email);
 
       if (!profile) {
-        // If first time Google login, verify if schoolcode is provided
-        if (!validatedSchool) {
-          // Switch to register tab with pre-filled name & email to require schoolcode
-          setEmail(res.user.email || '');
-          setFullName(res.user.displayName || '');
-          setMode('register');
-          setAuthError('Koppel nu uw unieke schoolcode om uw account te voltooien.');
-          setIsLoading(false);
-          return;
-        }
-
-        const resolvedSchoolName = validatedSchool.name || validatedSchool.schoolName || 'School';
-        const resolvedSchoolSector = (validatedSchool.sector as 'PO' | 'VO' | 'PO/VO') || 'PO';
-        let effectiveTargetSector: 'PO' | 'VO' = targetSector;
-        if (resolvedSchoolSector === 'PO') effectiveTargetSector = 'PO';
-        if (resolvedSchoolSector === 'VO') effectiveTargetSector = 'VO';
-
         profile = {
           uid: res.user.uid,
           email: res.user.email || '',
-          displayName: res.user.displayName || fullName || 'Onderwijsprofessional',
-          role: selectedRole,
-          schoolId: validatedSchool.id,
-          schoolCode: normalizeSchoolCode(validatedSchool.schoolCode),
-          schoolName: resolvedSchoolName,
-          schoolSector: resolvedSchoolSector,
-          targetSector: effectiveTargetSector,
+          displayName: res.user.displayName || fullName || 'Robin van der Meer',
+          role: selectedRole || 'leerkracht',
+          schoolId: '',
+          schoolCode: '',
+          schoolName: '',
+          schoolSector: targetSector || 'PO',
+          targetSector: targetSector || 'PO',
+          assignedModules: ['kerndoelen'],
           isCloudwiseAdmin: isAdmin,
+          isActivated: false,
           createdAt: new Date().toISOString(),
         };
         await saveUserProfile(profile);
@@ -318,7 +242,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
             <div>
               <span className="text-xs font-bold tracking-wider uppercase text-sky-200">
-                Cloudwise Onderwijs Inlog
+                Cloudwise Onderwijs Portaal
               </span>
               <h2 className="text-2xl font-bold font-headline-md leading-tight">
                 {mode === 'login' ? 'Inloggen bij Nulmeting' : 'Maak uw Account aan'}
@@ -327,8 +251,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
           <p className="text-sm text-sky-100 mt-1">
             {mode === 'login'
-              ? 'Log in met uw schoolaccount om uw nulmeting uit te voeren en resultaten te bekijken.'
-              : 'Voor deelname is een geverifieerde schoolcode van uw school of Cloudwise vereist.'}
+              ? 'Log in met uw account om uw nulmeting uit te voeren en rapportages te bekijken.'
+              : 'Maak snel een account aan. Na het inloggen koppelt u uw schoolcode om de klaargezette toets te ontgrendelen.'}
           </p>
 
           {/* Mode Tabs */}
@@ -359,7 +283,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   : 'text-white/80 hover:text-white'
               }`}
             >
-              Nieuw Account (met schoolcode)
+              Nieuw Account
             </button>
           </div>
         </div>
@@ -378,66 +302,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* REGISTER FORM */}
           {mode === 'register' ? (
-            <form onSubmit={handleRegister} className="space-y-5">
-              {/* STEP 1: Mandatory School Code Verification */}
-              <div className="p-4 bg-sky-50/70 border-2 border-[#00b6ed]/30 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-bold text-[#00435a] flex items-center gap-2">
-                    <SchoolIcon className="w-4 h-4 text-[#006687]" />
-                    Schoolcode <span className="text-red-500">* (Verplicht)</span>
-                  </label>
-                  {isValidatingCode && (
-                    <span className="text-xs text-[#006687] animate-pulse">Controleren...</span>
-                  )}
-                </div>
-
-                <div className="relative">
-                  <KeyRound className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    required
-                    value={schoolCodeInput}
-                    onChange={(e) => handleSchoolCodeChange(e.target.value)}
-                    placeholder="Voer uw schoolcode in"
-                    className="w-full pl-11 pr-10 py-3 bg-white border border-gray-300 rounded-xl text-base font-mono font-bold tracking-wider text-[#00435a] focus:ring-2 focus:ring-[#00b6ed] focus:border-transparent outline-none uppercase placeholder:font-sans placeholder:font-normal placeholder:tracking-normal"
-                  />
-                  {validatedSchool && (
-                    <CheckCircle2 className="w-5 h-5 absolute right-3.5 top-1/2 -translate-y-1/2 text-emerald-600" />
-                  )}
-                </div>
-
-                {/* Validated School Badge */}
-                {validatedSchool && (
-                  <div className="p-3.5 bg-emerald-50 border-2 border-emerald-300 rounded-xl flex items-center justify-between text-xs text-emerald-900 animate-fadeIn shadow-xs">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
-                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                      </div>
-                      <div>
-                        <span className="font-bold text-sm text-emerald-950 block">
-                          {validatedSchool.name || validatedSchool.schoolName || 'School gevonden'}
-                        </span>
-                        <span className="text-emerald-800 text-[11px] font-medium">
-                          {[validatedSchool.city, `Sector: ${validatedSchool.sector}`].filter(Boolean).join(' • ')}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="px-2.5 py-1 bg-emerald-200 text-emerald-900 rounded-lg font-bold text-[11px] whitespace-nowrap">
-                      Geverifieerde school
-                    </span>
-                  </div>
-                )}
-
-                {codeError && (
-                  <div className="text-xs text-red-600 flex items-center gap-1.5 font-medium">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{codeError}</span>
-                  </div>
-                )}
-
-                <div className="text-xs text-gray-500 pt-0.5">
-                  <span className="text-gray-500">
-                    Voer de unieke schoolcode in die uw school of Cloudwise heeft verstrekt. Deze wordt direct gecontroleerd.
+            <form onSubmit={handleRegister} className="space-y-4">
+              {/* Notice that schoolcode is entered after login */}
+              <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-2xl flex items-start gap-3 text-xs text-[#00435a]">
+                <KeyRound className="w-4 h-4 text-[#006687] shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block text-sm">Schoolcode koppelen na inloggen</span>
+                  <span className="text-gray-600">
+                    U heeft nu nog geen schoolcode nodig. Zodra u bent ingelogd kunt u uw schoolcode (#SCOD...) of activeringscode invoeren om de klaargezette test en modules te ontgrendelen.
                   </span>
                 </div>
               </div>
@@ -455,7 +327,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       required
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      placeholder="Bijv. Vincent Kruithof"
+                      placeholder="Bijv. Robin van der Meer"
                       className="w-full pl-10 pr-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[#00b6ed] outline-none"
                     />
                   </div>
@@ -502,59 +374,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                    <span>Onderwijssector</span>
-                    {validatedSchool && (
-                      <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
-                        School: {validatedSchool.sector}
-                      </span>
-                    )}
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    Onderwijssector
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      disabled={validatedSchool?.sector === 'VO'}
-                      onClick={() => validatedSchool?.sector !== 'VO' && setTargetSector('PO')}
-                      title={validatedSchool?.sector === 'VO' ? 'Niet selecteerbaar: uw school is gekoppeld aan VO' : 'Primair Onderwijs (PO)'}
-                      className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all flex items-center justify-center gap-1.5 ${
-                        validatedSchool?.sector === 'VO'
-                          ? 'bg-gray-100 text-gray-400 border-gray-200 opacity-60 cursor-not-allowed select-none'
-                          : targetSector === 'PO'
-                          ? 'bg-[#006687] text-white border-[#006687] cursor-pointer'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 cursor-pointer'
+                      onClick={() => setTargetSector('PO')}
+                      className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        targetSector === 'PO'
+                          ? 'bg-[#006687] text-white border-[#006687]'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                       }`}
                     >
+                      <GraduationCap className="w-3.5 h-3.5" />
                       <span>PO (Primair)</span>
-                      {validatedSchool?.sector === 'VO' && <Lock className="w-3 h-3 text-gray-400 shrink-0" />}
                     </button>
                     <button
                       type="button"
-                      disabled={validatedSchool?.sector === 'PO'}
-                      onClick={() => validatedSchool?.sector !== 'PO' && setTargetSector('VO')}
-                      title={validatedSchool?.sector === 'PO' ? 'Niet selecteerbaar: uw school is gekoppeld aan PO' : 'Voortgezet Onderwijs (VO)'}
-                      className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all flex items-center justify-center gap-1.5 ${
-                        validatedSchool?.sector === 'PO'
-                          ? 'bg-gray-100 text-gray-400 border-gray-200 opacity-60 cursor-not-allowed select-none'
-                          : targetSector === 'VO'
-                          ? 'bg-[#006687] text-white border-[#006687] cursor-pointer'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 cursor-pointer'
+                      onClick={() => setTargetSector('VO')}
+                      className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        targetSector === 'VO'
+                          ? 'bg-[#006687] text-white border-[#006687]'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                       }`}
                     >
+                      <GraduationCap className="w-3.5 h-3.5" />
                       <span>VO (Voortgezet)</span>
-                      {validatedSchool?.sector === 'PO' && <Lock className="w-3 h-3 text-gray-400 shrink-0" />}
                     </button>
                   </div>
-                  {validatedSchool && (validatedSchool.sector === 'PO' || validatedSchool.sector === 'VO') && (
-                    <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
-                      <Lock className="w-3 h-3 text-gray-400 shrink-0" />
-                      <span>Vastgesteld op {validatedSchool.sector} op basis van uw school ({validatedSchool.name || validatedSchool.schoolName}).</span>
-                    </p>
-                  )}
-                  {validatedSchool && validatedSchool.sector === 'PO/VO' && (
-                    <p className="text-[11px] text-emerald-700 mt-1 font-medium">
-                      ✓ Combinatieschool: u kunt kiezen tussen PO en VO.
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -580,18 +428,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               {/* Submit Register Button */}
               <button
                 type="submit"
-                disabled={isLoading || !validatedSchool}
-                className={`w-full py-3.5 px-6 rounded-2xl font-bold text-base flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer ${
-                  validatedSchool
-                    ? 'bg-[#006687] hover:bg-[#00506b] text-white'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
+                disabled={isLoading}
+                className="w-full py-3.5 px-6 rounded-2xl bg-[#006687] hover:bg-[#00506b] text-white font-bold text-base flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
               >
                 {isLoading ? (
                   <span>Account aanmaken...</span>
                 ) : (
                   <>
-                    <span>Account aanmaken & Starten</span>
+                    <span>Account aanmaken</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -684,7 +528,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* Privacy Note */}
           <p className="text-[11px] text-gray-500 text-center leading-relaxed">
-            De schoolcode koppelt uw score veilig en geanonimiseerd aan het geaggregeerde schoolrapport voor Cloudwise. Uw individuele antwoorden blijven beschermd conform de AVG.
+            Na inloggen koppelt u uw schoolcode om de klaargezette test en modules veilig te ontgrendelen. Uw persoonlijke gegevens en resultaten worden beschermd conform de AVG.
           </p>
         </div>
       </div>

@@ -836,3 +836,113 @@ export async function getCandidateProgress(
   return null;
 }
 
+// ================= 15. LINK SCHOOLCODE & UNLOCK ASSESSMENT =================
+export async function linkSchoolToUser(
+  userId: string,
+  inputCode: string
+): Promise<{ success: boolean; user?: AppUser; school?: School; error?: string }> {
+  if (!userId) {
+    return { success: false, error: 'Gebruiker is niet ingelogd.' };
+  }
+  const clean = inputCode.trim();
+  if (!clean) {
+    return { success: false, error: 'Voer een schoolcode of activeringscode in.' };
+  }
+
+  try {
+    // 1. Check activation code (CW-ACT-...)
+    if (clean.toUpperCase().startsWith('CW-ACT-') || clean.toUpperCase().startsWith('ACT-')) {
+      const act = await validateActivationCode(clean);
+      if (act) {
+        const existingProfile = await getUserProfile(userId);
+        const resolvedSector = act.targetSector || 'PO';
+        const updatedUser: AppUser = {
+          uid: userId,
+          email: existingProfile?.email || auth.currentUser?.email || '',
+          displayName: existingProfile?.displayName || auth.currentUser?.displayName || 'Onderwijsprofessional',
+          role: (act.targetFunction && act.targetFunction !== 'alle' ? act.targetFunction : existingProfile?.role || 'leerkracht') as UserRole,
+          schoolId: act.schoolId,
+          schoolCode: clean.toUpperCase(),
+          schoolName: act.schoolName,
+          bestuurId: act.bestuurId,
+          schoolSector: resolvedSector,
+          targetSector: resolvedSector,
+          assignedModules: act.assignedModules && act.assignedModules.length > 0 ? act.assignedModules : ['kerndoelen'],
+          isActivated: true,
+          activationCode: clean.toUpperCase(),
+          isCloudwiseAdmin: existingProfile?.isCloudwiseAdmin || false,
+          createdAt: existingProfile?.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        await saveUserProfile(updatedUser);
+
+        // Update activation code usage count
+        try {
+          await updateDoc(doc(db, 'activationCodes', clean.toUpperCase()), {
+            usedCount: (act.usedCount || 0) + 1,
+            lastUsedAt: new Date().toISOString(),
+          });
+        } catch {
+          // non-blocking
+        }
+
+        const schoolObj: School = {
+          id: act.schoolId,
+          bestuurId: act.bestuurId,
+          name: act.schoolName,
+          schoolName: act.schoolName,
+          schoolCode: clean.toUpperCase(),
+          city: 'Gekoppeld via activeringscode',
+          sector: resolvedSector,
+          isActive: true,
+          assignedModules: act.assignedModules,
+          createdAt: act.createdAt,
+        };
+
+        return { success: true, user: updatedUser, school: schoolObj };
+      }
+    }
+
+    // 2. Standard School Code validation in Firebase Firestore
+    const school = await validateSchoolCode(clean);
+    if (school) {
+      const existingProfile = await getUserProfile(userId);
+      const effectiveSchoolSector = (school.sector as 'PO' | 'VO' | 'PO/VO') || 'PO';
+      const effectiveTargetSector: 'PO' | 'VO' = effectiveSchoolSector === 'VO' ? 'VO' : 'PO';
+
+      const updatedUser: AppUser = {
+        uid: userId,
+        email: existingProfile?.email || auth.currentUser?.email || '',
+        displayName: existingProfile?.displayName || auth.currentUser?.displayName || 'Onderwijsprofessional',
+        role: existingProfile?.role || 'leerkracht',
+        schoolId: school.id,
+        schoolCode: normalizeSchoolCode(school.schoolCode),
+        schoolName: school.name || school.schoolName || 'School',
+        bestuurId: school.bestuurId || existingProfile?.bestuurId,
+        schoolSector: effectiveSchoolSector,
+        targetSector: effectiveTargetSector,
+        assignedModules: school.assignedModules && school.assignedModules.length > 0 ? school.assignedModules : ['kerndoelen'],
+        isActivated: true,
+        isCloudwiseAdmin: existingProfile?.isCloudwiseAdmin || false,
+        createdAt: existingProfile?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await saveUserProfile(updatedUser);
+      return { success: true, user: updatedUser, school };
+    }
+
+    return {
+      success: false,
+      error: 'De ingevoerde code is niet gevonden. Voer een geldige schoolcode (#SCOD...) of activeringscode (CW-ACT-...) in.',
+    };
+  } catch (err: any) {
+    console.error('Error linking school code:', err);
+    return {
+      success: false,
+      error: 'Er is een fout opgetreden bij het koppelen van de code: ' + (err.message || 'Probeer opnieuw'),
+    };
+  }
+}
+
