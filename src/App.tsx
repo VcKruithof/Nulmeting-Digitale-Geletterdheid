@@ -24,6 +24,7 @@ import {
   saveCandidateProgress,
   getCandidateProgress,
   DEFAULT_BESTUREN,
+  getQuestionOverrides,
 } from './services/firebase';
 
 const CURRENT_STATE_STORAGE_KEY = 'cloudwise_dg_current_state_v4';
@@ -53,6 +54,7 @@ export default function App() {
     }
   });
 
+  const [questionOverrides, setQuestionOverrides] = useState<Record<string, Question>>({});
   const [questions, setQuestions] = useState<Question[]>(() => getShuffledQuestions());
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [answers, setAnswers] = useState<AnswersMap>({});
@@ -66,6 +68,27 @@ export default function App() {
   const [isEnterSchoolCodeOpen, setIsEnterSchoolCodeOpen] = useState<boolean>(false);
   const [isCloudwiseAdminOpen, setIsCloudwiseAdminOpen] = useState<boolean>(false);
   const [isSchoolAccountOpen, setIsSchoolAccountOpen] = useState<boolean>(false);
+
+  // Load question overrides from Firestore questionBank
+  const loadQuestionBankOverrides = async () => {
+    try {
+      const overrides = await getQuestionOverrides();
+      setQuestionOverrides(overrides);
+      const userModules = currentUser?.assignedModules && currentUser.assignedModules.length > 0
+        ? currentUser.assignedModules
+        : ['kerndoelen'];
+      const updated = buildAssessmentQuestions(userModules, 'cards', overrides);
+      setQuestions(updated);
+      return overrides;
+    } catch (err) {
+      console.warn('Could not load question overrides:', err);
+      return {};
+    }
+  };
+
+  useEffect(() => {
+    loadQuestionBankOverrides();
+  }, []);
 
   // 1. Firebase Auth Listener
   useEffect(() => {
@@ -102,7 +125,7 @@ export default function App() {
               const userModules = profile.assignedModules && profile.assignedModules.length > 0
                 ? profile.assignedModules
                 : ['kerndoelen'];
-              const userQuestions = buildAssessmentQuestions(userModules, 'cards');
+              const userQuestions = buildAssessmentQuestions(userModules, 'cards', questionOverrides);
               setQuestions(userQuestions);
             }
 
@@ -261,7 +284,7 @@ export default function App() {
     const userModules = updatedUser.assignedModules && updatedUser.assignedModules.length > 0
       ? updatedUser.assignedModules
       : ['kerndoelen'];
-    const userQuestions = buildAssessmentQuestions(userModules, 'cards');
+    const userQuestions = buildAssessmentQuestions(userModules, 'cards', questionOverrides);
     setQuestions(userQuestions);
     const resolvedSector = updatedUser.schoolSector === 'VO' ? 'VO' : 'PO';
     setTargetSector(resolvedSector);
@@ -278,7 +301,7 @@ export default function App() {
       return;
     }
     const userModules = currentUser?.assignedModules || ['kerndoelen'];
-    const userQuestions = buildAssessmentQuestions(userModules, 'cards');
+    const userQuestions = buildAssessmentQuestions(userModules, 'cards', questionOverrides);
     setQuestions(userQuestions);
     setScreen('quiz');
     setActiveTab('test');
@@ -643,6 +666,9 @@ export default function App() {
         currentUser={currentUser}
         onAdminLoginSuccess={(user) => {
           setCurrentUser(user);
+        }}
+        onQuestionsUpdated={() => {
+          loadQuestionBankOverrides();
         }}
       />
 

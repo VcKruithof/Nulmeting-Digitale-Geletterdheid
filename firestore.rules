@@ -77,6 +77,12 @@ service cloud.firestore {
       allow write: if isCloudwiseAdmin();
     }
 
+    // Vragenbank collectie (Aangepaste vragen en antwoorden, beheerd door Cloudwise)
+    match /questionBank/{questionId} {
+      allow read: if true;
+      allow write: if isCloudwiseAdmin();
+    }
+
     // Activeringscodes collectie (Schoolaccount & Kandidaten)
     match /activationCodes/{code} {
       allow read: if true;

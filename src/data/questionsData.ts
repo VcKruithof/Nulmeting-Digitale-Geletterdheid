@@ -28,21 +28,51 @@ export function getShuffledQuestions(sourceList: Question[] = QUESTIONS): Questi
 }
 
 /**
+ * Applies custom Firestore question overrides onto base questions.
+ */
+export function applyQuestionOverrides(
+  questionsList: Question[],
+  overrides?: Record<string, Question> | null
+): Question[] {
+  if (!overrides || Object.keys(overrides).length === 0) return questionsList;
+
+  return questionsList.map((q) => {
+    const key = `q_${q.id}${q.moduleId ? '_' + q.moduleId : ''}`;
+    const override = overrides[key];
+    if (override) {
+      return {
+        ...q,
+        ...override,
+        id: q.id,
+        moduleId: q.moduleId,
+        type: override.type || q.type,
+      };
+    }
+    return q;
+  });
+}
+
+/**
  * Builds the assessment questions sequence for a user:
  * 1. Skills: either offered individual card-by-card (Left: "nog niet", Right: "ja") or as checklist.
  * 2. Knowledge questions (3 per subkerndoel).
  * 3. Niveaubepaling self-assessment (1 per subkerndoel).
  * 4. Modular questions for any assigned modules (ParnasSys, Magister, Teams, etc.).
+ * Dynamically incorporates any active questionBank overrides from Firestore.
  */
 export function buildAssessmentQuestions(
   assignedModules: string[] = ['kerndoelen'],
-  skillPresentation: 'cards' | 'checklist' = 'cards'
+  skillPresentation: 'cards' | 'checklist' = 'cards',
+  overrides?: Record<string, Question> | null
 ): Question[] {
+  const sourceQuestions = overrides ? applyQuestionOverrides(QUESTIONS, overrides) : QUESTIONS;
+  const sourceModularQuestions = overrides ? applyQuestionOverrides(MODULAR_QUESTIONS, overrides) : MODULAR_QUESTIONS;
+
   let baseQuestions: Question[] = [];
 
   if (skillPresentation === 'cards') {
     // Break question 1 into individual skill questions
-    const checklistItems = QUESTIONS[0].checklistItems || [];
+    const checklistItems = sourceQuestions[0].checklistItems || [];
     const skillQuestions: Question[] = checklistItems.map((item, idx) => {
       const sub = item.subcategoryId;
       const kerndoelId = sub.startsWith('1') ? 'cat1' : sub.startsWith('2') ? 'cat2' : 'cat3';
@@ -59,14 +89,14 @@ export function buildAssessmentQuestions(
       };
     });
 
-    const knowledgeAndSelfAssessment = QUESTIONS.slice(1);
+    const knowledgeAndSelfAssessment = sourceQuestions.slice(1);
     baseQuestions = [...skillQuestions, ...knowledgeAndSelfAssessment];
   } else {
-    baseQuestions = [...QUESTIONS];
+    baseQuestions = [...sourceQuestions];
   }
 
   // Add assigned modular questions (if any)
-  const modularQuestionsToAdd = MODULAR_QUESTIONS.filter(
+  const modularQuestionsToAdd = sourceModularQuestions.filter(
     (q) => q.moduleId && assignedModules.includes(q.moduleId)
   );
 

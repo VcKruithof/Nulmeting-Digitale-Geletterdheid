@@ -35,6 +35,7 @@ import {
   TargetFunctionRole,
   UserRole,
   BestuurAggregateReport,
+  Question,
 } from '../types';
 
 // 1. Initialize Firebase App and Services
@@ -448,16 +449,91 @@ export async function getAllSchools(): Promise<School[]> {
   }
 }
 
-// 10b. Cloudwise Admin: Delete or Deactivate School in Firebase
-export async function deleteSchoolByCloudwise(schoolId: string, schoolCode: string): Promise<void> {
+// 10b. Cloudwise Admin: Delete School with ALL Linked Data in Firebase (Cascading Delete)
+export async function deleteSchoolWithAllData(
+  schoolId: string,
+  schoolCode: string
+): Promise<{ deletedAssessmentsCount: number; deletedCodesCount: number; unlinkedUsersCount: number }> {
   const normCode = normalizeSchoolCode(schoolCode);
-  const codeKey = normCode.replace('#', '');
+  const codeKey = normCode.replace('#', '').toUpperCase();
+
+  let deletedAssessmentsCount = 0;
+  let deletedCodesCount = 0;
+  let unlinkedUsersCount = 0;
+
+  // 1. Delete school document from 'schools'
   try {
     await deleteDoc(doc(db, 'schools', schoolId));
-    await deleteDoc(doc(db, 'schoolCodes', codeKey));
   } catch (err) {
-    handleFirestoreError(err, OperationType.DELETE, `schools/${schoolId}`);
+    console.warn('Could not delete school doc:', err);
   }
+
+  // 2. Delete schoolCodes lookup documents (both uppercase key and normalized key)
+  try {
+    await deleteDoc(doc(db, 'schoolCodes', codeKey));
+    await deleteDoc(doc(db, 'schoolCodes', normCode));
+  } catch (err) {
+    console.warn('Could not delete schoolCodes entry:', err);
+  }
+
+  // 3. Delete all associated assessments in 'assessments'
+  try {
+    const q1 = query(collection(db, 'assessments'), where('schoolCode', '==', normCode));
+    const snap1 = await getDocs(q1);
+    for (const d of snap1.docs) {
+      await deleteDoc(d.ref);
+      deletedAssessmentsCount++;
+    }
+
+    // Also check assessments matching by schoolId
+    const q2 = query(collection(db, 'assessments'), where('schoolId', '==', schoolId));
+    const snap2 = await getDocs(q2);
+    for (const d of snap2.docs) {
+      if (!snap1.docs.some((sd) => sd.id === d.id)) {
+        await deleteDoc(d.ref);
+        deletedAssessmentsCount++;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not cascade delete assessments:', err);
+  }
+
+  // 4. Delete all activation codes generated for this school in 'activationCodes'
+  try {
+    const qAct = query(collection(db, 'activationCodes'), where('schoolId', '==', schoolId));
+    const snapAct = await getDocs(qAct);
+    for (const d of snapAct.docs) {
+      await deleteDoc(d.ref);
+      deletedCodesCount++;
+    }
+  } catch (err) {
+    console.warn('Could not cascade delete activationCodes:', err);
+  }
+
+  // 5. Unlink any users tied to this school in 'users'
+  try {
+    const qUsers = query(collection(db, 'users'), where('schoolId', '==', schoolId));
+    const snapUsers = await getDocs(qUsers);
+    for (const d of snapUsers.docs) {
+      await updateDoc(d.ref, {
+        schoolId: '',
+        schoolCode: '',
+        schoolName: '',
+        isActivated: false,
+        updatedAt: new Date().toISOString(),
+      });
+      unlinkedUsersCount++;
+    }
+  } catch (err) {
+    console.warn('Could not unlink users:', err);
+  }
+
+  return { deletedAssessmentsCount, deletedCodesCount, unlinkedUsersCount };
+}
+
+// Legacy alias
+export async function deleteSchoolByCloudwise(schoolId: string, schoolCode: string): Promise<void> {
+  await deleteSchoolWithAllData(schoolId, schoolCode);
 }
 
 // 10c. Seed initial schools directly INTO Firebase Firestore (only called when Firestore is empty)
@@ -726,12 +802,48 @@ export async function getAllBesturen(): Promise<Bestuur[]> {
   try {
     const snap = await getDocs(collection(db, 'besturen'));
     if (!snap.empty) {
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Bestuur));
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Bestuur));
+      return list.sort((a, b) => a.name.localeCompare(b.name));
     }
   } catch (err) {
     console.warn('Could not load besturen from Firestore, using standard list:', err);
   }
   return DEFAULT_BESTUREN;
+}
+
+export async function addBestuurByCloudwise(
+  bestuurData: Omit<Bestuur, 'id' | 'createdAt'>
+): Promise<Bestuur> {
+  const normCode = (bestuurData.code || `BST-${Date.now()}`).trim().toUpperCase();
+  const cleanId = normCode.replace(/[^A-Z0-9]/g, '_').toLowerCase();
+  const bestuurId = `bestuur_${cleanId}_${Math.random().toString(36).substring(2, 6)}`;
+
+  const newBestuur: Bestuur = {
+    ...bestuurData,
+    id: bestuurId,
+    code: normCode,
+    deadline: bestuurData.deadline || '2026-06-30',
+    contactEmail: bestuurData.contactEmail || '',
+    schoolCount: 0,
+    candidateCount: 0,
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    await setDoc(doc(db, 'besturen', bestuurId), cleanFirestoreData(newBestuur));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `besturen/${bestuurId}`);
+  }
+
+  return newBestuur;
+}
+
+export async function deleteBestuurByCloudwise(bestuurId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'besturen', bestuurId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `besturen/${bestuurId}`);
+  }
 }
 
 export async function updateBestuurDeadline(bestuurId: string, deadline: string): Promise<void> {
@@ -1000,6 +1112,49 @@ export async function linkSchoolToUser(
       success: false,
       error: 'Er is een fout opgetreden bij het koppelen van de code: ' + msg,
     };
+  }
+}
+
+// ================= 16. QUESTION BANK CUSTOMIZATION =================
+export async function saveQuestionOverride(question: Question): Promise<void> {
+  const docKey = `q_${question.id}${question.moduleId ? '_' + question.moduleId : ''}`;
+  const path = `questionBank/${docKey}`;
+  try {
+    const cleaned = cleanFirestoreData({
+      ...question,
+      docKey,
+      updatedAt: new Date().toISOString(),
+      updatedBy: auth.currentUser?.email || 'Cloudwise Admin',
+    });
+    await setDoc(doc(db, 'questionBank', docKey), cleaned);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+  }
+}
+
+export async function getQuestionOverrides(): Promise<Record<string, Question>> {
+  try {
+    const snap = await getDocs(collection(db, 'questionBank'));
+    const map: Record<string, Question> = {};
+    snap.docs.forEach((d) => {
+      const data = d.data() as Question & { docKey?: string };
+      const key = data.docKey || d.id;
+      map[key] = data;
+    });
+    return map;
+  } catch (err) {
+    console.warn('Could not fetch question overrides:', err);
+    return {};
+  }
+}
+
+export async function resetQuestionOverride(questionId: number, moduleId?: string): Promise<void> {
+  const docKey = `q_${questionId}${moduleId ? '_' + moduleId : ''}`;
+  const path = `questionBank/${docKey}`;
+  try {
+    await deleteDoc(doc(db, 'questionBank', docKey));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
   }
 }
 
