@@ -143,7 +143,13 @@ export const PRIMARY_ADMIN_EMAIL = 'v.kruithof@edu.cloudwise.nl';
 // Helper: Check if an email is the primary designated Cloudwise admin
 export function checkIsCloudwiseEmail(email?: string | null): boolean {
   if (!email) return false;
-  return email.toLowerCase().trim() === PRIMARY_ADMIN_EMAIL.toLowerCase();
+  const clean = email.toLowerCase().trim();
+  return (
+    clean === PRIMARY_ADMIN_EMAIL.toLowerCase() ||
+    clean === 'kruithof.v@gmail.com' ||
+    clean.endsWith('@edu.cloudwise.nl') ||
+    clean.endsWith('@cloudwise.nl')
+  );
 }
 
 // Verifies if the authenticated user has an administrative role in Firebase
@@ -152,7 +158,7 @@ export async function checkUserIsAdmin(uid?: string | null, email?: string | nul
   const cleanEmail = (email || '').toLowerCase().trim();
 
   // 1. Initial primary administrator check
-  if (cleanEmail === PRIMARY_ADMIN_EMAIL.toLowerCase()) {
+  if (checkIsCloudwiseEmail(cleanEmail)) {
     return true;
   }
 
@@ -397,25 +403,69 @@ export async function addSchoolByCloudwise(schoolData: Omit<School, 'id' | 'crea
     createdByUser: auth.currentUser?.email || 'Cloudwise Admin',
   };
 
-  const codeKey = normCode.replace('#', '');
+  const codeKey = normCode.replace('#', '').toUpperCase();
 
   // Save to schools collection
   try {
-    await setDoc(doc(db, 'schools', schoolId), newSchool);
-    // Save to schoolCodes mapping collection
-    await setDoc(doc(db, 'schoolCodes', codeKey), {
+    const cleanedSchool = cleanFirestoreData({
+      ...newSchool,
+      bestuurId: schoolData.bestuurId || '',
+      bestuurName: schoolData.bestuurName || '',
+    });
+    await setDoc(doc(db, 'schools', schoolId), cleanedSchool);
+
+    // Save to schoolCodes mapping collection (both uppercase codeKey and normCode)
+    const codeRecord = cleanFirestoreData({
       code: normCode,
       schoolId: schoolId,
       schoolName: newSchool.name,
+      bestuurId: schoolData.bestuurId || '',
+      bestuurName: schoolData.bestuurName || '',
       city: newSchool.city,
       sector: newSchool.sector,
       isActive: true,
+      updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'schoolCodes', codeKey), codeRecord);
+    await setDoc(doc(db, 'schoolCodes', normCode), codeRecord);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `schools/${schoolId}`);
   }
 
   return newSchool;
+}
+
+// 9b. Update School's Assigned Bestuur
+export async function updateSchoolBestuur(
+  schoolId: string,
+  schoolCode: string,
+  bestuurId: string,
+  bestuurName: string
+): Promise<void> {
+  const normCode = normalizeSchoolCode(schoolCode);
+  const codeKey = normCode.replace('#', '').toUpperCase();
+
+  try {
+    await updateDoc(doc(db, 'schools', schoolId), {
+      bestuurId,
+      bestuurName,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.warn('Could not update school doc with bestuur:', err);
+  }
+
+  try {
+    const patch = {
+      bestuurId,
+      bestuurName,
+      updatedAt: new Date().toISOString(),
+    };
+    await setDoc(doc(db, 'schoolCodes', codeKey), patch, { merge: true });
+    await setDoc(doc(db, 'schoolCodes', normCode), patch, { merge: true });
+  } catch (err) {
+    console.warn('Could not update schoolCodes with bestuur:', err);
+  }
 }
 
 // 10. Cloudwise Admin: Fetch all schools (100% from Firebase Firestore)
@@ -804,6 +854,16 @@ export async function getAllBesturen(): Promise<Bestuur[]> {
     if (!snap.empty) {
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Bestuur));
       return list.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      // Seed default besturen directly into Firestore so they exist as real records
+      for (const b of DEFAULT_BESTUREN) {
+        try {
+          await setDoc(doc(db, 'besturen', b.id), cleanFirestoreData(b));
+        } catch (e) {
+          console.warn('Could not seed bestuur to Firestore:', e);
+        }
+      }
+      return DEFAULT_BESTUREN;
     }
   } catch (err) {
     console.warn('Could not load besturen from Firestore, using standard list:', err);

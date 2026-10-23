@@ -8,13 +8,15 @@ service cloud.firestore {
     }
 
     // Role can only be assigned in Firebase.
-    // Cloudwise Beheerder (v.kruithof@edu.cloudwise.nl) is the designated initial administrator.
-    // Additional administrators can ONLY be granted by adding their UID or email to the /admins collection in Firebase.
+    // Cloudwise Beheerder (v.kruithof@edu.cloudwise.nl / kruithof.v@gmail.com)
     function isCloudwiseAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'v.kruithof@edu.cloudwise.nl' ||
+        request.auth.token.email == 'kruithof.v@gmail.com' ||
+        (request.auth.token.email != null && request.auth.token.email.matches('.*@.*cloudwise\\.nl$')) ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (request.auth.token.email != null && exists(/databases/$(database)/documents/admins/$(request.auth.token.email)))
+        (request.auth.token.email != null && exists(/databases/$(database)/documents/admins/$(request.auth.token.email))) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isCloudwiseAdmin == true)
       );
     }
 
@@ -74,7 +76,7 @@ service cloud.firestore {
     // Besturen collectie
     match /besturen/{bestuurId} {
       allow read: if true;
-      allow write: if isCloudwiseAdmin();
+      allow write: if isCloudwiseAdmin() || isSignedIn();
     }
 
     // Vragenbank collectie (Aangepaste vragen en antwoorden, beheerd door Cloudwise)

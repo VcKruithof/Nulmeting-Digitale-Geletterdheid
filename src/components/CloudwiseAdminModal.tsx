@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   School,
-  SchoolAggregateReport,
   SavedAssessment,
   AppUser,
   Bestuur,
@@ -13,6 +12,7 @@ import {
   addSchoolByCloudwise,
   deleteSchoolWithAllData,
   seedInitialSchoolsInFirebase,
+  updateSchoolBestuur,
   checkUserIsAdmin,
   saveUserProfile,
   getUserProfile,
@@ -36,30 +36,19 @@ import {
 import {
   ShieldAlert,
   Building,
-  KeyRound,
   Plus,
-  BarChart3,
-  Users,
-  Award,
   CheckCircle,
-  Copy,
-  Printer,
-  Sparkles,
   X,
   AlertTriangle,
   Layers,
   School as SchoolIcon,
   Lock,
-  Mail,
   ShieldCheck,
-  ArrowRight,
-  LogOut,
   Trash2,
   Calendar,
   FileSpreadsheet,
   Download,
   BookOpen,
-  Filter,
   Search,
   Check,
   Clock,
@@ -68,8 +57,9 @@ import {
   Edit3,
   Save,
   RotateCcw,
-  AlertCircle,
   HelpCircle,
+  ChevronDown,
+  Users,
 } from 'lucide-react';
 import { QUESTIONS, applyQuestionOverrides } from '../data/questionsData';
 import { SYSTEM_MODULES, MODULAR_QUESTIONS } from '../data/modulesData';
@@ -101,14 +91,13 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
   const [activeTab, setActiveTab] = useState<AdminTab>('schools');
   const [schools, setSchools] = useState<School[]>([]);
   const [besturen, setBesturen] = useState<Bestuur[]>(DEFAULT_BESTUREN);
-  const [isLoadingSchools, setIsLoadingSchools] = useState<boolean>(false);
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(false);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [selectedBestuur, setSelectedBestuur] = useState<Bestuur>(DEFAULT_BESTUREN[0]);
 
   // Access Control / Login Wall State
   const [isCheckingAccess, setIsCheckingAccess] = useState<boolean>(true);
   const [isAuthorizedAdmin, setIsAuthorizedAdmin] = useState<boolean>(false);
-  const [accessDeniedMessage, setAccessDeniedMessage] = useState<string | null>(null);
 
   // Admin Inlogmuur form state
   const [adminEmailInput, setAdminEmailInput] = useState('');
@@ -116,7 +105,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // 1. New School Form state
+  // 1. School Management State
   const [showAddSchoolForm, setShowAddSchoolForm] = useState<boolean>(false);
   const [newName, setNewName] = useState('');
   const [newCode, setNewCode] = useState('');
@@ -126,12 +115,16 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
   const [isSubmittingSchool, setIsSubmittingSchool] = useState(false);
   const [schoolActionSuccess, setSchoolActionSuccess] = useState<string | null>(null);
 
+  // Quick Inline Bestuur Editing for a School
+  const [editingBestuurSchoolId, setEditingBestuurSchoolId] = useState<string | null>(null);
+  const [selectedInlineBestuurId, setSelectedInlineBestuurId] = useState<string>('');
+
   // 2. Cascade Delete School State
   const [schoolToDelete, setSchoolToDelete] = useState<School | null>(null);
   const [isDeletingSchool, setIsDeletingSchool] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
-  // 3. New Bestuur Form state
+  // 3. Bestuur Management State
   const [showAddBestuurForm, setShowAddBestuurForm] = useState<boolean>(false);
   const [newBestuurName, setNewBestuurName] = useState('');
   const [newBestuurCode, setNewBestuurCode] = useState('');
@@ -148,7 +141,6 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
 
   // 4. Vragenbank State & Editing
   const [questionOverrides, setQuestionOverrides] = useState<Record<string, Question>>({});
-  const [isLoadingQuestions, setIsLoadingQuestions] = useState<boolean>(false);
   const [vragenbankSearch, setVragenbankSearch] = useState('');
   const [vragenbankModuleFilter, setVragenbankModuleFilter] = useState<string>('alle');
   const [vragenbankTypeFilter, setVragenbankTypeFilter] = useState<string>('alle');
@@ -167,13 +159,12 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
   const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
   const [exportSuccessMessage, setExportSuccessMessage] = useState<string | null>(null);
 
-  // Verify admin status
+  // Verify admin status on open
   useEffect(() => {
     if (!isOpen) return;
 
     const verifyAdminStatus = async () => {
       setIsCheckingAccess(true);
-      setAccessDeniedMessage(null);
 
       if (!currentUser) {
         setIsAuthorizedAdmin(false);
@@ -187,9 +178,6 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
         loadAllAdminData();
       } else {
         setIsAuthorizedAdmin(false);
-        setAccessDeniedMessage(
-          `U bent momenteel ingelogd als "${currentUser.displayName || currentUser.email}". Dit account beschikt niet over de Cloudwise beheerdersrol.`
-        );
       }
       setIsCheckingAccess(false);
     };
@@ -198,8 +186,9 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
   }, [isOpen, currentUser]);
 
   const loadAllAdminData = async () => {
-    setIsLoadingSchools(true);
+    setIsLoadingData(true);
     try {
+      // 1. Load besturen from Firestore
       const bList = await getAllBesturen();
       setBesturen(bList);
       if (bList.length > 0) {
@@ -207,6 +196,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
         setNewBestuurId(bList[0].id);
       }
 
+      // 2. Load schools from Firestore
       let list = await getAllSchools();
       if (list.length === 0) {
         list = await seedInitialSchoolsInFirebase();
@@ -216,13 +206,13 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
         setSelectedSchool(list[0]);
       }
 
-      // Load Question Bank overrides from Firestore
+      // 3. Load question bank overrides from Firestore
       const overrides = await getQuestionOverrides();
       setQuestionOverrides(overrides);
     } catch (err) {
-      console.error('Failed loading admin data:', err);
+      console.error('Failed loading admin data from Firestore:', err);
     } finally {
-      setIsLoadingSchools(false);
+      setIsLoadingData(false);
     }
   };
 
@@ -312,7 +302,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
     }
   };
 
-  // --- SCHOOL CRUD ACTIONS ---
+  // --- 1. SCHOOL MANAGEMENT ACTIONS ---
   const handleCreateSchool = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newCode.trim()) {
@@ -322,14 +312,17 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
 
     setIsSubmittingSchool(true);
     try {
-      const selectedB = besturen.find((b) => b.id === newBestuurId);
+      const selectedB = besturen.find((b) => b.id === newBestuurId) || besturen[0];
+      const targetBestuurId = selectedB?.id || newBestuurId || 'bestuur_opo_mh';
+      const targetBestuurName = selectedB?.name || 'Bestuur';
+
       const added = await addSchoolByCloudwise({
         name: newName.trim(),
         schoolCode: newCode.trim(),
         city: newCity.trim() || 'Nederland',
         sector: newSector,
-        bestuurId: newBestuurId,
-        bestuurName: selectedB?.name || 'Bestuur',
+        bestuurId: targetBestuurId,
+        bestuurName: targetBestuurName,
         isActive: true,
       });
 
@@ -338,12 +331,29 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
       setNewName('');
       setNewCode('');
       setNewCity('');
-      setSchoolActionSuccess(`School "${added.name}" met code ${added.schoolCode} succesvol aangemaakt!`);
-      setTimeout(() => setSchoolActionSuccess(null), 4000);
+      setSchoolActionSuccess(`School "${added.name}" gekoppeld aan "${targetBestuurName}" (${added.schoolCode}) succesvol aangemaakt!`);
+      setTimeout(() => setSchoolActionSuccess(null), 5000);
     } catch (err: any) {
       alert('Fout bij toevoegen van school: ' + (err.message || 'Onbekende fout'));
     } finally {
       setIsSubmittingSchool(false);
+    }
+  };
+
+  const handleSaveInlineBestuurChange = async (schoolItem: School, newTargetBestuurId: string) => {
+    const foundB = besturen.find((b) => b.id === newTargetBestuurId);
+    if (!foundB) return;
+
+    try {
+      await updateSchoolBestuur(schoolItem.id, schoolItem.schoolCode, foundB.id, foundB.name);
+      setSchools((prev) =>
+        prev.map((s) => (s.id === schoolItem.id ? { ...s, bestuurId: foundB.id, bestuurName: foundB.name } : s))
+      );
+      setEditingBestuurSchoolId(null);
+      setSchoolActionSuccess(`School "${schoolItem.name}" succesvol gekoppeld aan bestuur "${foundB.name}"!`);
+      setTimeout(() => setSchoolActionSuccess(null), 4000);
+    } catch (err: any) {
+      alert('Fout bij koppelen van bestuur: ' + (err.message || 'Onbekende fout'));
     }
   };
 
@@ -357,7 +367,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
         setSelectedSchool(null);
       }
       setSchoolActionSuccess(
-        `School "${schoolToDelete.name}" en alle gekoppelde data zijn definitief verwijderd (${res.deletedAssessmentsCount} assessments gewist, ${res.deletedCodesCount} activeringscodes gewist, ${res.unlinkedUsersCount} accounts ontkoppeld).`
+        `School "${schoolToDelete.name}" en alle gekoppelde data definitief gewist (${res.deletedAssessmentsCount} assessments gewist, ${res.deletedCodesCount} activeringscodes gewist, ${res.unlinkedUsersCount} accounts ontkoppeld).`
       );
       setSchoolToDelete(null);
       setDeleteConfirmText('');
@@ -379,7 +389,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
     setTimeout(() => setSchoolActionSuccess(null), 3000);
   };
 
-  // --- BESTUUR CRUD ACTIONS ---
+  // --- 2. BESTUUR MANAGEMENT ACTIONS ---
   const handleCreateBestuur = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBestuurName.trim() || !newBestuurCode.trim()) {
@@ -404,7 +414,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
       setNewBestuurCode('');
       setNewBestuurEmail('');
       setBestuurActionSuccess(`Bestuur "${added.name}" (${added.code}) succesvol geregistreerd in Firestore!`);
-      setTimeout(() => setBestuurActionSuccess(null), 4000);
+      setTimeout(() => setBestuurActionSuccess(null), 5000);
     } catch (err: any) {
       alert('Fout bij aanmaken van bestuur: ' + (err.message || 'Onbekende fout'));
     } finally {
@@ -427,7 +437,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
     if (linkedSchools.length > 0) {
       if (
         !confirm(
-          `Let op: er zijn nog ${linkedSchools.length} scholen gekoppeld aan "${bestuur.name}". Weet u zeker dat u dit bestuur wilt verwijderen?`
+          `Let op: er zijn ${linkedSchools.length} scholen gekoppeld aan "${bestuur.name}". Weet u zeker dat u dit bestuur wilt verwijderen?`
         )
       ) {
         return;
@@ -448,7 +458,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
     }
   };
 
-  // --- VRAGENBANK EDITING ACTIONS ---
+  // --- 3. VRAGENBANK EDITING ACTIONS ---
   const handleOpenEditQuestion = (q: Question) => {
     const key = `q_${q.id}${q.moduleId ? '_' + q.moduleId : ''}`;
     const effectiveQuestion = questionOverrides[key] || q;
@@ -497,7 +507,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
   };
 
   const handleResetQuestionToDefault = async (q: Question) => {
-    if (!confirm(`Weet u zeker dat u vraag #${q.id} wilt terugzetten naar de standaardinformatie?`)) {
+    if (!confirm(`Weet u zeker dat u vraag #${q.id} wilt terugzetten naar de standaardvraag?`)) {
       return;
     }
 
@@ -509,7 +519,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
         delete next[key];
         return next;
       });
-      setQuestionSaveSuccess(`Vraag #${q.id} succesvol hersteld naar standaard.`);
+      setQuestionSaveSuccess(`Vraag #${q.id} succesvol hersteld naar de standaard.`);
       if (onQuestionsUpdated) onQuestionsUpdated();
       setTimeout(() => setQuestionSaveSuccess(null), 3000);
     } catch (err: any) {
@@ -517,7 +527,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
     }
   };
 
-  // --- XLSX EXPORTS ---
+  // --- 4. XLSX EXPORTS ---
   const handleExportSchoolXLSX = async (schoolToExport: School) => {
     setIsExporting(true);
     setExportProgress({ stage: 'Starten met voorbereiden...', percent: 5 });
@@ -562,7 +572,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Combine all questions for the Vragenbank with active overrides applied
+  // Combine questions with active overrides applied
   const effectiveBaseQuestions = applyQuestionOverrides(QUESTIONS, questionOverrides);
   const effectiveModularQuestions = applyQuestionOverrides(MODULAR_QUESTIONS, questionOverrides);
 
@@ -769,7 +779,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
               </button>
             </div>
 
-            {/* TAB 1: SCHOLEN & DEADLINES (met optie om school en data te verwijderen) */}
+            {/* TAB 1: SCHOLEN & DEADLINES (met optie om school, gekoppeld bestuur en data te beheren) */}
             {activeTab === 'schools' && (
               <div className="py-5">
                 {schoolActionSuccess && (
@@ -782,10 +792,10 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                   <div>
                     <h3 className="text-base font-bold text-on-background">
-                      Aangesloten Scholen & Toetsdeadlines
+                      Aangesloten Scholen & Bestuurskoppelingen
                     </h3>
                     <p className="text-xs text-on-surface-variant">
-                      Beheer scholen in Firestore, stel toetsdeadlines in of verwijder scholen inclusief alle gekoppelde data.
+                      Koppel elke school aan het juiste bestuur, stel toetsdeadlines in of verwijder scholen inclusief alle data.
                     </p>
                   </div>
                   <button
@@ -845,7 +855,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
                       </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-on-surface-variant mb-1">
-                          Gekoppeld Bestuur
+                          Gekoppeld Bestuur *
                         </label>
                         <select
                           value={newBestuurId}
@@ -879,7 +889,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
                   </form>
                 )}
 
-                {/* Schools Table */}
+                {/* Schools Table with inline Bestuur switcher */}
                 <div className="border border-surface-container-high rounded-2xl overflow-hidden">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-surface-container-low border-b border-surface-container-high text-on-surface-variant font-semibold">
@@ -894,7 +904,8 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
                     </thead>
                     <tbody className="divide-y divide-surface-container-high">
                       {schools.map((schoolItem) => {
-                        const isEditingThis = editingDeadlineSchoolId === schoolItem.id;
+                        const isEditingDeadline = editingDeadlineSchoolId === schoolItem.id;
+                        const isEditingBestuur = editingBestuurSchoolId === schoolItem.id;
                         const schoolBestuur = besturen.find((b) => b.id === schoolItem.bestuurId) || besturen[0];
 
                         return (
@@ -905,17 +916,67 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
                             <td className="p-3 font-mono font-bold text-primary">
                               {schoolItem.schoolCode}
                             </td>
+
+                            {/* Gekoppeld Bestuur met directe switch optie */}
                             <td className="p-3 text-on-surface-variant">
-                              <span className="block font-medium">{schoolBestuur?.name}</span>
-                              <span className="text-[10px] font-mono text-outline">{schoolItem.bestuurId || schoolBestuur?.id}</span>
+                              {isEditingBestuur ? (
+                                <div className="flex items-center gap-1.5">
+                                  <select
+                                    value={selectedInlineBestuurId || schoolItem.bestuurId || schoolBestuur?.id}
+                                    onChange={(e) => setSelectedInlineBestuurId(e.target.value)}
+                                    className="px-2 py-1 rounded border border-purple-400 bg-surface-container-lowest text-xs text-on-background max-w-[200px]"
+                                  >
+                                    {besturen.map((b) => (
+                                      <option key={b.id} value={b.id}>
+                                        {b.name} ({b.code})
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => handleSaveInlineBestuurChange(schoolItem, selectedInlineBestuurId || schoolBestuur?.id)}
+                                    className="p-1 bg-purple-700 text-white rounded cursor-pointer"
+                                    title="Bestuur koppelen"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingBestuurSchoolId(null)}
+                                    className="p-1 text-on-surface-variant rounded cursor-pointer"
+                                    title="Annuleren"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <div>
+                                    <span className="block font-medium text-on-background">{schoolBestuur?.name}</span>
+                                    <span className="text-[10px] font-mono text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded font-semibold">
+                                      {schoolItem.bestuurId || schoolBestuur?.id}
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      setEditingBestuurSchoolId(schoolItem.id);
+                                      setSelectedInlineBestuurId(schoolItem.bestuurId || schoolBestuur?.id);
+                                    }}
+                                    className="text-[11px] text-purple-700 hover:underline font-semibold cursor-pointer ml-auto"
+                                    title="Koppel ander bestuur aan deze school"
+                                  >
+                                    Wijzig
+                                  </button>
+                                </div>
+                              )}
                             </td>
+
                             <td className="p-3">
                               <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-medium">
                                 {schoolItem.sector}
                               </span>
                             </td>
+
                             <td className="p-3">
-                              {isEditingThis ? (
+                              {isEditingDeadline ? (
                                 <div className="flex items-center gap-1.5">
                                   <input
                                     type="date"
@@ -956,6 +1017,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
                                 </div>
                               )}
                             </td>
+
                             <td className="p-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
@@ -1000,7 +1062,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                   <div>
                     <h3 className="text-base font-bold text-on-background">
-                      Schoolbesturen Beheer
+                      Schoolbesturen Beheer in Firestore
                     </h3>
                     <p className="text-xs text-on-surface-variant">
                       Maak nieuwe bovenschoolse besturen aan in Firestore en beheer koepeldeadlines voor bestuursbenchmarks.
@@ -1290,7 +1352,6 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
                           </span>
                           {q.isOverridden && (
                             <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <Sparkles className="w-3 h-3 text-emerald-600" />
                               Aangepast in Vragenbank
                             </span>
                           )}
@@ -1374,7 +1435,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
                         XLSX Export-engine met Achtergrondverwerking
                       </h3>
                       <p className="text-xs text-emerald-800/90 mt-0.5 leading-relaxed">
-                        Exporteer school- en bestuursrapportages rechtstreeks naar Microsoft Excel (.xlsx) met dynamische tabbladen (Algemeen Overzicht, Kerndoelen Analyse, Modulestatistieken, en Geanonimiseerde Responsen).
+                        Exporteer school- en bestuursrapportages rechtstreeks naar Microsoft Excel (.xlsx) met dynamische tabbladen.
                         Conform AVG / GDPR bevatten de exportbestanden geen directe persoonsgegevens.
                       </p>
                     </div>
@@ -1414,7 +1475,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
                       Schoolrapport Export (.xlsx)
                     </h4>
                     <p className="text-xs text-on-surface-variant mb-4">
-                      Download het volledige .xlsx rapport voor één specifieke school (Foreach Kandidaat in School_ID).
+                      Download het volledige .xlsx rapport voor één specifieke school.
                     </p>
 
                     <div className="space-y-3">
@@ -1456,7 +1517,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
                       Bestuursrapport & Benchmark Export (.xlsx)
                     </h4>
                     <p className="text-xs text-on-surface-variant mb-4">
-                      Benchmark alle scholen onder het Bestuur (Foreach School in Bestuur_ID, Foreach Kandidaat in Bestuur_ID).
+                      Benchmark alle aangesloten scholen onder het Bestuur.
                     </p>
 
                     <div className="space-y-3">
@@ -1628,7 +1689,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
                       <button
                         type="button"
                         onClick={() => {
-                          const nextId = String.fromCharCode(97 + editOptions.length); // e, f, ...
+                          const nextId = String.fromCharCode(97 + editOptions.length);
                           setEditOptions((prev) => [...prev, { id: nextId, label: 'Nieuwe optie' }]);
                         }}
                         className="text-[11px] text-primary hover:underline font-semibold cursor-pointer"

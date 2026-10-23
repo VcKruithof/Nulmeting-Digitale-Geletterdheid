@@ -64,26 +64,52 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
   const isChecklistView = question.type === 'checklist';
 
-  // Keyboard navigation for skill questions (ArrowLeft: "nog niet", ArrowRight: "ja")
-  useEffect(() => {
-    if (!isSkillQuestion) return;
+  // Helper: Select skill card answer and immediately auto-advance to next question
+  const handleSelectSkillWithAutoAdvance = (choice: 'nog_niet' | 'ja') => {
+    onSelectOption(choice);
+    setTimeout(() => {
+      onNext();
+    }, 180);
+  };
 
+  // Keyboard navigation for skill questions (ArrowLeft: "nog niet", ArrowRight: "ja")
+  // Automatically advances to the next question upon selection!
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger if user is typing in an input
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
 
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        onSelectOption('nog_niet');
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        onSelectOption('ja');
+      if (isSkillQuestion) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          handleSelectSkillWithAutoAdvance('nog_niet');
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          handleSelectSkillWithAutoAdvance('ja');
+        }
+      } else if (
+        question.type === 'self-assessment' ||
+        question.type === 'module-assessment' ||
+        question.type === 'knowledge'
+      ) {
+        // Quick number keys 1-4
+        if (['1', '2', '3', '4'].includes(e.key) && question.options) {
+          const optIndex = parseInt(e.key, 10) - 1;
+          const targetOpt = question.options[optIndex];
+          if (targetOpt) {
+            e.preventDefault();
+            onSelectOption(targetOpt.id);
+            setTimeout(() => {
+              onNext();
+            }, 220);
+          }
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSkillQuestion, onSelectOption]);
+  }, [isSkillQuestion, question, onSelectOption, onNext]);
 
   // Touch handlers for mobile swipe
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -99,10 +125,10 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
     if (diff < -50) {
       // Swiped left -> "Nog niet"
-      onSelectOption('nog_niet');
+      handleSelectSkillWithAutoAdvance('nog_niet');
     } else if (diff > 50) {
       // Swiped right -> "Ja"
-      onSelectOption('ja');
+      handleSelectSkillWithAutoAdvance('ja');
     }
     setTouchStartX(null);
   };
@@ -260,7 +286,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               {/* NAAR LINKS: NOG NIET */}
               <button
                 type="button"
-                onClick={() => onSelectOption('nog_niet')}
+                onClick={() => handleSelectSkillWithAutoAdvance('nog_niet')}
                 className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-3 text-center cursor-pointer group ${
                   currentAnswer === 'nog_niet' || currentAnswer === 'nee'
                     ? 'border-amber-500 bg-amber-50 shadow-md ring-2 ring-amber-400'
@@ -289,7 +315,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               {/* NAAR RECHTS: JA */}
               <button
                 type="button"
-                onClick={() => onSelectOption('ja')}
+                onClick={() => handleSelectSkillWithAutoAdvance('ja')}
                 className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-3 text-center cursor-pointer group ${
                   currentAnswer === 'ja'
                     ? 'border-emerald-600 bg-emerald-50 shadow-md ring-2 ring-emerald-500'
@@ -316,9 +342,15 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               </button>
             </div>
 
-            <div className="mt-6 flex items-center justify-center gap-2 text-xs text-on-surface-variant/80">
-              <span className="inline-block w-2 h-2 rounded-full bg-primary" />
-              <span>Tip: op touchscreens kun je de kaart ook naar links of rechts swipen.</span>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs text-on-surface-variant/85 text-center">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 text-sky-800 border border-sky-200 font-semibold">
+                <span>Sneltoetsen actief:</span>
+                <kbd className="px-1.5 py-0.5 bg-white rounded border border-sky-300 text-[10px] font-mono">◄ Links</kbd>
+                <span>Nog niet</span>
+                <span>•</span>
+                <kbd className="px-1.5 py-0.5 bg-white rounded border border-sky-300 text-[10px] font-mono">Rechts ►</kbd>
+                <span>Ja (gaat direct door naar de volgende vraag)</span>
+              </span>
             </div>
           </div>
         )}
