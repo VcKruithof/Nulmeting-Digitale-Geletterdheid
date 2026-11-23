@@ -48,6 +48,11 @@ export const SubgoalDetailModal: React.FC<SubgoalDetailModalProps> = ({
     if (q1Answers.includes(itemId)) return true;
     if (safeAnswers[itemId] === 'ja') return true;
     if (safeAnswers[`skill_${itemId}`] === 'ja') return true;
+    const match = itemId.match(/^q1_(\d+)$/);
+    if (match) {
+      const cardId = 1000 + parseInt(match[1], 10);
+      if (safeAnswers[cardId] === 'ja' || safeAnswers[String(cardId)] === 'ja') return true;
+    }
     return Object.entries(safeAnswers).some(([k, v]) => {
       return (k === itemId || k.endsWith(`_${itemId}`)) && v === 'ja';
     });

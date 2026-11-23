@@ -100,7 +100,7 @@ export function getCheckedSkillItemIds(answers: AnswersMap): string[] {
     });
   }
 
-  // 2. Direct keys (e.g. answers['q1_1'] === 'ja', answers['skill_q1_1'] === 'ja')
+  // 2. Direct keys (e.g. answers['q1_1'] === 'ja', answers['skill_q1_1'] === 'ja', answers[1001] === 'ja')
   Object.entries(answers).forEach(([key, val]) => {
     if (val === 'ja') {
       if (key.startsWith('q1_')) {
@@ -112,6 +112,11 @@ export function getCheckedSkillItemIds(answers: AnswersMap): string[] {
         const candidate = parts.slice(-2).join('_'); // e.g. 'q1_1'
         if (candidate.startsWith('q1_')) {
           checked.add(candidate);
+        }
+      } else {
+        const num = Number(key);
+        if (!Number.isNaN(num) && num >= 1001 && num <= 1027) {
+          checked.add(`q1_${num - 1000}`);
         }
       }
     }

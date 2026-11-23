@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { ArrowLeft, ArrowRight, Check, ListFilter, X, CheckCircle, ThumbsDown, ThumbsUp, HelpCircle } from 'lucide-react';
 import { Question } from '../types';
 import {
@@ -38,6 +38,17 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
   // Touch swipe support for skill questions
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cancel any pending auto-advance if question changes or component unmounts
+  useEffect(() => {
+    return () => {
+      if (autoAdvanceTimerRef.current) {
+        clearTimeout(autoAdvanceTimerRef.current);
+        autoAdvanceTimerRef.current = null;
+      }
+    };
+  }, [question.id]);
 
   const isOptionSelected = (optionId: string) => {
     if (typeof currentAnswer === 'string') {
@@ -67,7 +78,11 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   // Helper: Select skill card answer and immediately auto-advance to next question
   const handleSelectSkillWithAutoAdvance = (choice: 'nog_niet' | 'ja') => {
     onSelectOption(choice);
-    setTimeout(() => {
+    if (autoAdvanceTimerRef.current) {
+      clearTimeout(autoAdvanceTimerRef.current);
+    }
+    autoAdvanceTimerRef.current = setTimeout(() => {
+      autoAdvanceTimerRef.current = null;
       onNext();
     }, 180);
   };
@@ -99,7 +114,11 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           if (targetOpt) {
             e.preventDefault();
             onSelectOption(targetOpt.id);
-            setTimeout(() => {
+            if (autoAdvanceTimerRef.current) {
+              clearTimeout(autoAdvanceTimerRef.current);
+            }
+            autoAdvanceTimerRef.current = setTimeout(() => {
+              autoAdvanceTimerRef.current = null;
               onNext();
             }, 220);
           }
@@ -419,7 +438,6 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               return (
                 <label
                   key={item.id}
-                  onClick={() => onToggleChecklistItem(item.id)}
                   className={`option-card block cursor-pointer border rounded-xl p-3 sm:p-3.5 transition-all duration-200 relative group ${
                     checked
                       ? 'border-primary-container bg-sky-1/45 ring-1 ring-primary-container shadow-xs'

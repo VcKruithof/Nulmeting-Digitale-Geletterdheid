@@ -56,6 +56,7 @@ export default function App() {
 
   const [questionOverrides, setQuestionOverrides] = useState<Record<string, Question>>({});
   const [questions, setQuestions] = useState<Question[]>(() => getShuffledQuestions());
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [answers, setAnswers] = useState<AnswersMap>({});
   const answersRef = useRef<AnswersMap>({});
   useEffect(() => {
@@ -315,81 +316,82 @@ export default function App() {
   const handleSelectOption = (optionId: string) => {
     const currentQ = questions[currentQuestionIndex];
     if (!currentQ) return;
-    setAnswers((prev) => {
-      const nextAnswers: AnswersMap = {
-        ...prev,
-        [currentQ.id]: optionId,
-      };
 
-      // If this is an individual skill card, map to skillItemId for compatibility
-      if (currentQ.type === 'skill' && currentQ.skillItemId) {
-        nextAnswers[currentQ.skillItemId] = optionId;
-        nextAnswers[`skill_${currentQ.skillItemId}`] = optionId;
+    const prev = answersRef.current || answers;
+    const nextAnswers: AnswersMap = {
+      ...prev,
+      [currentQ.id]: optionId,
+    };
 
-        // Keep answers[1] array representation 100% in sync
-        const existingQ1: string[] = Array.isArray(prev[1]) ? [...(prev[1] as string[])] : [];
-        if (optionId === 'ja') {
-          if (!existingQ1.includes(currentQ.skillItemId)) {
-            existingQ1.push(currentQ.skillItemId);
-          }
-        } else {
-          const idx = existingQ1.indexOf(currentQ.skillItemId);
-          if (idx >= 0) {
-            existingQ1.splice(idx, 1);
-          }
+    // If this is an individual skill card, map to skillItemId for compatibility
+    if (currentQ.type === 'skill' && currentQ.skillItemId) {
+      nextAnswers[currentQ.skillItemId] = optionId;
+      nextAnswers[`skill_${currentQ.skillItemId}`] = optionId;
+
+      // Keep answers[1] array representation 100% in sync
+      const existingQ1: string[] = Array.isArray(prev[1]) ? [...(prev[1] as string[])] : [];
+      if (optionId === 'ja') {
+        if (!existingQ1.includes(currentQ.skillItemId)) {
+          existingQ1.push(currentQ.skillItemId);
         }
-        nextAnswers[1] = existingQ1;
+      } else {
+        const idx = existingQ1.indexOf(currentQ.skillItemId);
+        if (idx >= 0) {
+          existingQ1.splice(idx, 1);
+        }
       }
+      nextAnswers[1] = existingQ1;
+    }
 
-      answersRef.current = nextAnswers;
+    answersRef.current = nextAnswers;
+    setAnswers(nextAnswers);
 
-      // Auto-save progress to prevent data loss on network disruption
-      if (currentUser?.uid) {
-        saveCandidateProgress(currentUser.uid, currentQuestionIndex, nextAnswers);
-      }
-      return nextAnswers;
-    });
+    // Auto-save progress to prevent data loss on network disruption
+    if (currentUser?.uid) {
+      saveCandidateProgress(currentUser.uid, currentQuestionIndex, nextAnswers);
+    }
   };
 
   // Handler for toggling Question 1 checklist items
   const handleToggleChecklistItem = (itemId: string) => {
     const currentQ = questions[currentQuestionIndex];
     if (!currentQ) return;
-    setAnswers((prev) => {
-      const currentList: string[] = Array.isArray(prev[currentQ.id])
-        ? (prev[currentQ.id] as string[])
-        : [];
 
-      const exists = currentList.includes(itemId);
-      const updated = exists
-        ? currentList.filter((id) => id !== itemId)
-        : [...currentList, itemId];
+    const prev = answersRef.current || answers;
+    const currentList: string[] = Array.isArray(prev[currentQ.id])
+      ? (prev[currentQ.id] as string[])
+      : [];
 
-      const nextAnswers: AnswersMap = {
-        ...prev,
-        [currentQ.id]: updated,
-      };
+    const exists = currentList.includes(itemId);
+    const updated = exists
+      ? currentList.filter((id) => id !== itemId)
+      : [...currentList, itemId];
 
-      if (currentQ.id === 1) {
-        const status = !exists ? 'ja' : 'nog_niet';
-        nextAnswers[itemId] = status;
-        nextAnswers[`skill_${itemId}`] = status;
-      }
+    const nextAnswers: AnswersMap = {
+      ...prev,
+      [currentQ.id]: updated,
+    };
 
-      answersRef.current = nextAnswers;
+    if (currentQ.id === 1) {
+      const status = !exists ? 'ja' : 'nog_niet';
+      nextAnswers[itemId] = status;
+      nextAnswers[`skill_${itemId}`] = status;
+    }
 
-      if (currentUser?.uid) {
-        saveCandidateProgress(currentUser.uid, currentQuestionIndex, nextAnswers);
-      }
-      return nextAnswers;
-    });
+    answersRef.current = nextAnswers;
+    setAnswers(nextAnswers);
+
+    if (currentUser?.uid) {
+      saveCandidateProgress(currentUser.uid, currentQuestionIndex, nextAnswers);
+    }
   };
 
   // Move to next question or complete assessment
   const handleNext = () => {
-    const latestAnswers = answersRef.current && Object.keys(answersRef.current).length > 0
-      ? answersRef.current
-      : answers;
+    const latestAnswers =
+      answersRef.current && Object.keys(answersRef.current).length > 0
+        ? answersRef.current
+        : answers;
 
     if (currentQuestionIndex < questions.length - 1) {
       const nextIdx = currentQuestionIndex + 1;
@@ -486,7 +488,11 @@ export default function App() {
 
   // Handle starting a fresh test
   const handleStartFreshTest = () => {
-    setQuestions(getShuffledQuestions());
+    const userModules = currentUser?.assignedModules && currentUser.assignedModules.length > 0
+      ? currentUser.assignedModules
+      : ['kerndoelen'];
+    setQuestions(buildAssessmentQuestions(userModules, 'cards', questionOverrides));
+    answersRef.current = {};
     setAnswers({});
     setCurrentQuestionIndex(0);
     setResults(null);
@@ -498,10 +504,14 @@ export default function App() {
   // Delete all results & restart
   const handleDeleteAllAndRestart = () => {
     setSavedAssessments([]);
+    answersRef.current = {};
     setAnswers({});
     setResults(null);
     setCurrentQuestionIndex(0);
-    setQuestions(getShuffledQuestions());
+    const userModules = currentUser?.assignedModules && currentUser.assignedModules.length > 0
+      ? currentUser.assignedModules
+      : ['kerndoelen'];
+    setQuestions(buildAssessmentQuestions(userModules, 'cards', questionOverrides));
     try {
       localStorage.removeItem(CURRENT_STATE_STORAGE_KEY);
       localStorage.removeItem(SAVED_ASSESSMENTS_STORAGE_KEY);
@@ -516,7 +526,8 @@ export default function App() {
   // Past assessment select
   const handleSelectPastAssessment = (assessment: SavedAssessment) => {
     setResults(assessment.result);
-    setAnswers(assessment.answers);
+    answersRef.current = assessment.answers || {};
+    setAnswers(assessment.answers || {});
     setScreen('results');
     setActiveTab('results');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -527,6 +538,7 @@ export default function App() {
     setSavedAssessments((prev) => prev.filter((item) => item.id !== id));
     if (results && results.id === id) {
       setResults(null);
+      answersRef.current = {};
       setAnswers({});
       setCurrentQuestionIndex(0);
       setScreen('welcome');
@@ -542,10 +554,11 @@ export default function App() {
       console.error('Sign out error:', e);
     }
     setCurrentUser(null);
+    answersRef.current = {};
     setAnswers({});
     setResults(null);
     setCurrentQuestionIndex(0);
-    setQuestions(getShuffledQuestions());
+    setQuestions(buildAssessmentQuestions(['kerndoelen'], 'cards', questionOverrides));
     setSavedAssessments([]);
     try {
       localStorage.removeItem(CURRENT_STATE_STORAGE_KEY);
