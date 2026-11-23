@@ -123,6 +123,10 @@ export default function App() {
               isCloudwiseAdmin: isAdmin || profile.isCloudwiseAdmin,
             };
 
+            if (isAdmin && !profile.isCloudwiseAdmin) {
+              saveUserProfile(updatedUser).catch(() => {});
+            }
+
             setCurrentUser(updatedUser);
 
             // Rebuild modular questions if schoolcode is present

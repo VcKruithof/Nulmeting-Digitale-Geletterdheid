@@ -15,12 +15,17 @@ service cloud.firestore {
     // Cloudwise Beheerder (v.kruithof@edu.cloudwise.nl / kruithof.v@gmail.com)
     function isCloudwiseAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == 'v.kruithof@edu.cloudwise.nl' ||
-        request.auth.token.email == 'kruithof.v@gmail.com' ||
-        (request.auth.token.email != null && request.auth.token.email.matches('.*@.*cloudwise\\.nl$')) ||
+        request.auth.uid == 'V2uPwKj7YZbVN6zEqM9Uwmcn0tg2' ||
+        ('email' in request.auth.token && request.auth.token.email is string && (
+          request.auth.token.email.lower() == 'v.kruithof@edu.cloudwise.nl' ||
+          request.auth.token.email.lower() == 'kruithof.v@gmail.com' ||
+          request.auth.token.email.lower().matches('.*@.*cloudwise\\.nl$')
+        )) ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (request.auth.token.email != null && exists(/databases/$(database)/documents/admins/$(request.auth.token.email))) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isCloudwiseAdmin == true)
+        ('email' in request.auth.token && request.auth.token.email is string && exists(/databases/$(database)/documents/admins/$(request.auth.token.email.lower()))) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          'isCloudwiseAdmin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isCloudwiseAdmin == true)
       );
     }
 
