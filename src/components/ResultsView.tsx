@@ -88,7 +88,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
   const filteredQuestions = questions.filter((q) => {
     if (filterType === 'knowledge') return q.type === 'knowledge';
-    if (filterType === 'self') return q.type === 'self-assessment' || q.type === 'checklist';
+    if (filterType === 'self') return q.type === 'self-assessment' || q.type === 'checklist' || q.type === 'skill';
     if (filterType === 'wrong') {
       if (q.type !== 'knowledge') return false;
       return isQuestionCorrect(q) === false;
@@ -851,9 +851,20 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 const userAns = currentAnswers[q.id];
 
                 let userAnsLabel = 'Niet beantwoord';
+                let isSkillMastered = false;
                 if (q.type === 'checklist') {
                   const checked = Array.isArray(userAns) ? userAns.length : 0;
                   userAnsLabel = `${checked} van ${q.checklistItems?.length || 27} vaardigheden aangevinkt`;
+                } else if (q.type === 'skill') {
+                  const rawAns = userAns || (q.skillItemId ? currentAnswers[q.skillItemId] : undefined) || (q.skillItemId ? currentAnswers[`skill_${q.skillItemId}`] : undefined);
+                  isSkillMastered = rawAns === 'ja';
+                  if (rawAns === 'ja') {
+                    userAnsLabel = 'Ja, dit kan ik (Beheers ik en pas ik zelfstandig toe)';
+                  } else if (rawAns === 'nog_niet' || rawAns === 'nee') {
+                    userAnsLabel = 'Nog niet (Nog niet onder de knie of niet toegepast)';
+                  } else {
+                    userAnsLabel = 'Niet beantwoord';
+                  }
                 } else if (userAns && q.options) {
                   const found = q.options.find((o) => o.id === userAns);
                   if (found) userAnsLabel = found.label;
@@ -887,6 +898,16 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 <XCircle className="w-4 h-4" />
                               </div>
                             )
+                          ) : q.type === 'skill' ? (
+                            isSkillMastered ? (
+                              <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              </div>
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">
+                                •
+                              </div>
+                            )
                           ) : (
                             <div className="w-6 h-6 rounded-full bg-sky-1 text-primary flex items-center justify-center text-xs font-bold">
                               {q.id}
@@ -897,7 +918,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-                              Vraag {q.id} • {q.subcategoryTitle}
+                              {q.type === 'skill' ? 'Praktijkvaardigheid' : `Vraag ${q.id}`} • {q.subcategoryTitle}
                             </span>
                             {q.type === 'knowledge' && (
                               <span
@@ -908,6 +929,17 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 }`}
                               >
                                 {correctStatus ? 'Goed' : 'Fout'}
+                              </span>
+                            )}
+                            {q.type === 'skill' && (
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                  isSkillMastered
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : 'bg-amber-50 text-amber-700'
+                                }`}
+                              >
+                                {isSkillMastered ? 'Beheerst' : 'Nog niet'}
                               </span>
                             )}
                           </div>
@@ -938,6 +970,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 ? correctStatus
                                   ? 'text-green-700'
                                   : 'text-red-700'
+                                : q.type === 'skill'
+                                ? isSkillMastered
+                                  ? 'text-emerald-700'
+                                  : 'text-amber-700'
                                 : 'text-on-background'
                             }`}
                           >

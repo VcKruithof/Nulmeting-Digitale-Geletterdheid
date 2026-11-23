@@ -43,6 +43,16 @@ export const SubgoalDetailModal: React.FC<SubgoalDetailModalProps> = ({
   const q1Question = QUESTIONS.find((q) => q.id === 1);
   const safeAnswers = answers || {};
   const q1Answers = Array.isArray(safeAnswers[1]) ? (safeAnswers[1] as string[]) : [];
+
+  const isSkillItemChecked = (itemId: string): boolean => {
+    if (q1Answers.includes(itemId)) return true;
+    if (safeAnswers[itemId] === 'ja') return true;
+    if (safeAnswers[`skill_${itemId}`] === 'ja') return true;
+    return Object.entries(safeAnswers).some(([k, v]) => {
+      return (k === itemId || k.endsWith(`_${itemId}`)) && v === 'ja';
+    });
+  };
+
   const linkedQ1Items = (q1Question?.checklistItems || []).filter(
     (item) => item.subcategoryId === subgoal.id || q1ItemIds.includes(item.id)
   );
@@ -418,7 +428,7 @@ export const SubgoalDetailModal: React.FC<SubgoalDetailModalProps> = ({
 
             <div className="space-y-2">
               {linkedQ1Items.map((item) => {
-                const isChecked = q1Answers.includes(item.id);
+                const isChecked = isSkillItemChecked(item.id);
                 return (
                   <div
                     key={item.id}

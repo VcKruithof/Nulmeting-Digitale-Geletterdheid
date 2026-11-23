@@ -90,24 +90,48 @@ export function evaluateSelfCalibration(
   };
 }
 
+export function getCheckedSkillItemIds(answers: AnswersMap): string[] {
+  const checked = new Set<string>();
+
+  // 1. Array representation in answers[1] (from checklist mode or state sync)
+  if (Array.isArray(answers[1])) {
+    answers[1].forEach((id) => {
+      if (typeof id === 'string') checked.add(id);
+    });
+  }
+
+  // 2. Direct keys (e.g. answers['q1_1'] === 'ja', answers['skill_q1_1'] === 'ja')
+  Object.entries(answers).forEach(([key, val]) => {
+    if (val === 'ja') {
+      if (key.startsWith('q1_')) {
+        checked.add(key);
+      } else if (key.startsWith('skill_q1_')) {
+        checked.add(key.replace('skill_', ''));
+      } else if (key.includes('_q1_')) {
+        const parts = key.split('_');
+        const candidate = parts.slice(-2).join('_'); // e.g. 'q1_1'
+        if (candidate.startsWith('q1_')) {
+          checked.add(candidate);
+        }
+      }
+    }
+  });
+
+  return Array.from(checked);
+}
+
 export function calculateAssessmentResults(
   user: UserProfile,
   answers: AnswersMap
 ): AssessmentResult {
   const targetGroup = user.targetGroup || 'PO';
-  const q1Checked: string[] = Array.isArray(answers[1]) ? (answers[1] as string[]) : [];
+  const allCheckedSkillIds = getCheckedSkillItemIds(answers);
 
   // Calculate Subcategory Scores
   const subcategoryScores: SubcategoryScore[] = RAW_SUBCATEGORIES.map((def) => {
     // 1. Checklist / Individual Skill items checked for this subcategory
     const checklistCount = def.q1ItemIds.filter((itemId) => {
-      if (q1Checked.includes(itemId)) return true;
-      if (answers[itemId] === 'ja') return true;
-      if (answers[`skill_${itemId}`] === 'ja') return true;
-      // Also check if any question keyed by number has this skill itemId and is answered 'ja'
-      return Object.entries(answers).some(([key, val]) => {
-        return (key === itemId || key.endsWith(`_${itemId}`)) && val === 'ja';
-      });
+      return allCheckedSkillIds.includes(itemId);
     }).length;
     const checklistTotal = def.q1ItemIds.length;
 
@@ -306,7 +330,7 @@ export function calculateAssessmentResults(
   const overallSelfAssessmentAvg =
     totalSelfCount > 0 ? Number((totalSelfSum / totalSelfCount).toFixed(1)) : 1.0;
 
-  const overallChecklistCount = q1Checked.length;
+  const overallChecklistCount = allCheckedSkillIds.length;
   const overallChecklistTotal = 27;
   const overallChecklistPercentage =
     overallChecklistTotal > 0

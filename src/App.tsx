@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { AnswersMap, AssessmentResult, SavedAssessment, Question, UserProfile, AppUser, School } from './types';
 import { QUESTIONS, getShuffledQuestions, buildAssessmentQuestions } from './data/questionsData';
@@ -56,8 +56,11 @@ export default function App() {
 
   const [questionOverrides, setQuestionOverrides] = useState<Record<string, Question>>({});
   const [questions, setQuestions] = useState<Question[]>(() => getShuffledQuestions());
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [answers, setAnswers] = useState<AnswersMap>({});
+  const answersRef = useRef<AnswersMap>({});
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
   const [results, setResults] = useState<AssessmentResult | null>(null);
   const [isNavigatorOpen, setIsNavigatorOpen] = useState<boolean>(false);
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
@@ -322,7 +325,23 @@ export default function App() {
       if (currentQ.type === 'skill' && currentQ.skillItemId) {
         nextAnswers[currentQ.skillItemId] = optionId;
         nextAnswers[`skill_${currentQ.skillItemId}`] = optionId;
+
+        // Keep answers[1] array representation 100% in sync
+        const existingQ1: string[] = Array.isArray(prev[1]) ? [...(prev[1] as string[])] : [];
+        if (optionId === 'ja') {
+          if (!existingQ1.includes(currentQ.skillItemId)) {
+            existingQ1.push(currentQ.skillItemId);
+          }
+        } else {
+          const idx = existingQ1.indexOf(currentQ.skillItemId);
+          if (idx >= 0) {
+            existingQ1.splice(idx, 1);
+          }
+        }
+        nextAnswers[1] = existingQ1;
       }
+
+      answersRef.current = nextAnswers;
 
       // Auto-save progress to prevent data loss on network disruption
       if (currentUser?.uid) {
@@ -351,6 +370,14 @@ export default function App() {
         [currentQ.id]: updated,
       };
 
+      if (currentQ.id === 1) {
+        const status = !exists ? 'ja' : 'nog_niet';
+        nextAnswers[itemId] = status;
+        nextAnswers[`skill_${itemId}`] = status;
+      }
+
+      answersRef.current = nextAnswers;
+
       if (currentUser?.uid) {
         saveCandidateProgress(currentUser.uid, currentQuestionIndex, nextAnswers);
       }
@@ -360,11 +387,15 @@ export default function App() {
 
   // Move to next question or complete assessment
   const handleNext = () => {
+    const latestAnswers = answersRef.current && Object.keys(answersRef.current).length > 0
+      ? answersRef.current
+      : answers;
+
     if (currentQuestionIndex < questions.length - 1) {
       const nextIdx = currentQuestionIndex + 1;
       setCurrentQuestionIndex(nextIdx);
       if (currentUser?.uid) {
-        saveCandidateProgress(currentUser.uid, nextIdx, answers);
+        saveCandidateProgress(currentUser.uid, nextIdx, latestAnswers);
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
@@ -381,12 +412,12 @@ export default function App() {
         activationCode: currentUser?.activationCode,
       };
 
-      const calculated = calculateAssessmentResults(activeParticipant, answers);
+      const calculated = calculateAssessmentResults(activeParticipant, latestAnswers);
       const resultId = `assessment_${Date.now()}`;
       const finalResult: AssessmentResult = {
         ...calculated,
         id: resultId,
-        answers: answers,
+        answers: latestAnswers,
       };
 
       const newSavedItem: SavedAssessment = {
@@ -396,7 +427,7 @@ export default function App() {
         createdAt: new Date().toISOString(),
         expiresAt: finalResult.expiresAt,
         result: finalResult,
-        answers: answers,
+        answers: latestAnswers,
         schoolId: currentUser?.schoolId,
         schoolCode: currentUser?.schoolCode,
         schoolName: currentUser?.schoolName,
