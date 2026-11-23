@@ -202,75 +202,46 @@ export async function checkUserIsAdmin(uid?: string | null, email?: string | nul
   return false;
 }
 
-// 5. Schoolcode Validation Service (100% Firebase Firestore)
-// "De schoolcodes staan niet meer in de frontend opgeslagen. Alles rondom schoolcodes gebeurt in Firebase."
+// 5. Schoolcode Validation Service (100% Firebase Firestore 'schools' collectie)
+// "Alle schoolcodes staan direct op het schooldocument in de 'schools' collectie."
 export async function validateSchoolCode(inputCode: string): Promise<School | null> {
   const norm = normalizeSchoolCode(inputCode);
   if (!norm || norm.length < 2) return null;
 
   const codeKey = norm.replace('#', '').toUpperCase();
+  const candidateCodes = [norm, codeKey, inputCode.trim(), inputCode.trim().toUpperCase()];
 
-  // 1. Direct lookup in Firebase Firestore 'schoolCodes' index
+  const mapSchoolDoc = (id: string, raw: any): School => ({
+    id,
+    name: raw.name || raw.schoolName || 'School',
+    schoolName: raw.name || raw.schoolName || 'School',
+    schoolCode: raw.schoolCode || raw.code || norm,
+    city: raw.city || '',
+    sector: (raw.sector || 'PO') as 'PO' | 'VO' | 'PO/VO',
+    bestuurId: raw.bestuurId || '',
+    bestuurName: raw.bestuurName || '',
+    assignedModules: raw.assignedModules || ['kerndoelen'],
+    deadline: raw.deadline || '',
+    isActive: raw.isActive !== false,
+    createdAt: raw.createdAt || new Date().toISOString(),
+  });
+
+  // 1. Direct indexed query on 'schools' collection by schoolCode
   try {
-    let codeSnap = await getDoc(doc(db, 'schoolCodes', codeKey));
-    if (!codeSnap.exists()) {
-      codeSnap = await getDoc(doc(db, 'schoolCodes', norm));
-    }
-
-    if (codeSnap.exists()) {
-      const data = codeSnap.data() as any;
-      if (data.isActive !== false) {
-        // Fetch full school record from Firestore
-        let schoolFromRef: School | null = null;
-        if (data.schoolId) {
-          const schoolDocRef = doc(db, 'schools', data.schoolId);
-          const schoolSnap = await getDoc(schoolDocRef);
-          if (schoolSnap.exists()) {
-            const sData = schoolSnap.data() as any;
-            schoolFromRef = {
-              id: schoolSnap.id,
-              name: sData.name || sData.schoolName || data.schoolName || data.name || 'School',
-              schoolName: sData.name || sData.schoolName || data.schoolName || data.name || 'School',
-              schoolCode: sData.schoolCode || sData.code || data.code || inputCode,
-              city: sData.city || data.city || '',
-              sector: (sData.sector || data.sector || 'PO') as 'PO' | 'VO' | 'PO/VO',
-              bestuurId: sData.bestuurId || data.bestuurId || '',
-              bestuurName: sData.bestuurName || data.bestuurName || '',
-              assignedModules: sData.assignedModules || data.assignedModules || ['kerndoelen'],
-              deadline: sData.deadline || data.deadline || '',
-              isActive: sData.isActive !== false,
-              createdAt: sData.createdAt || new Date().toISOString(),
-            };
-          }
-        }
-
-        if (schoolFromRef) {
-          return schoolFromRef;
-        }
-
-        return {
-          id: data.schoolId || codeSnap.id,
-          name: data.name || data.schoolName || 'School',
-          schoolName: data.name || data.schoolName || 'School',
-          schoolCode: data.code || data.schoolCode || inputCode,
-          city: data.city || '',
-          sector: (data.sector || 'PO') as 'PO' | 'VO' | 'PO/VO',
-          bestuurId: data.bestuurId || '',
-          bestuurName: data.bestuurName || '',
-          assignedModules: data.assignedModules || ['kerndoelen'],
-          deadline: data.deadline || '',
-          isActive: true,
-          createdAt: new Date().toISOString(),
-        };
+    const q = query(collection(db, 'schools'), where('schoolCode', '==', norm));
+    const qSnap = await getDocs(q);
+    for (const d of qSnap.docs) {
+      const raw = d.data() as any;
+      if (raw.isActive !== false) {
+        return mapSchoolDoc(d.id, raw);
       }
     }
   } catch (err) {
-    console.warn('Firestore schoolCodes lookup warning:', err);
+    console.warn('Firestore indexed schoolCode query warning:', err);
   }
 
-  // 2. Direct query or collection scan in Firebase Firestore 'schools' collection
+  // 2. Normalized fallback scan on 'schools' collection
   try {
-    const candidateCodes = [norm, codeKey, inputCode.trim(), inputCode.trim().toUpperCase()];
     const querySnapshot = await getDocs(collection(db, 'schools'));
     for (const d of querySnapshot.docs) {
       const raw = d.data() as any;
@@ -282,20 +253,7 @@ export async function validateSchoolCode(inputCode: string): Promise<School | nu
         candidateCodes.includes(schoolCode)
       ) {
         if (raw.isActive !== false) {
-          return {
-            id: d.id,
-            name: raw.name || raw.schoolName || 'School',
-            schoolName: raw.name || raw.schoolName || 'School',
-            schoolCode: raw.schoolCode || raw.code || inputCode,
-            city: raw.city || '',
-            sector: (raw.sector || 'PO') as 'PO' | 'VO' | 'PO/VO',
-            bestuurId: raw.bestuurId || '',
-            bestuurName: raw.bestuurName || '',
-            assignedModules: raw.assignedModules || ['kerndoelen'],
-            deadline: raw.deadline || '',
-            isActive: true,
-            createdAt: raw.createdAt || new Date().toISOString(),
-          };
+          return mapSchoolDoc(d.id, raw);
         }
       }
     }
@@ -303,7 +261,6 @@ export async function validateSchoolCode(inputCode: string): Promise<School | nu
     console.warn('Firestore schools collection query warning:', err);
   }
 
-  // If not found in Firebase Firestore, return null. NO frontend fallback!
   return null;
 }
 
@@ -389,7 +346,7 @@ export async function getUserAssessments(uid: string): Promise<any[]> {
   }
 }
 
-// 9. Cloudwise Admin: Add New School & School Code
+// 9. Cloudwise Admin: Add New School (schoolCode is stored directly on the school doc)
 export async function addSchoolByCloudwise(schoolData: Omit<School, 'id' | 'createdAt'>): Promise<School> {
   const schoolId = `school_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const normCode = normalizeSchoolCode(schoolData.schoolCode);
@@ -403,9 +360,7 @@ export async function addSchoolByCloudwise(schoolData: Omit<School, 'id' | 'crea
     createdByUser: auth.currentUser?.email || 'Cloudwise Admin',
   };
 
-  const codeKey = normCode.replace('#', '').toUpperCase();
-
-  // Save to schools collection
+  // Save directly to schools collection (single source of truth for school + schoolCode)
   try {
     const cleanedSchool = cleanFirestoreData({
       ...newSchool,
@@ -413,21 +368,6 @@ export async function addSchoolByCloudwise(schoolData: Omit<School, 'id' | 'crea
       bestuurName: schoolData.bestuurName || '',
     });
     await setDoc(doc(db, 'schools', schoolId), cleanedSchool);
-
-    // Save to schoolCodes mapping collection (both uppercase codeKey and normCode)
-    const codeRecord = cleanFirestoreData({
-      code: normCode,
-      schoolId: schoolId,
-      schoolName: newSchool.name,
-      bestuurId: schoolData.bestuurId || '',
-      bestuurName: schoolData.bestuurName || '',
-      city: newSchool.city,
-      sector: newSchool.sector,
-      isActive: true,
-      updatedAt: new Date().toISOString(),
-    });
-    await setDoc(doc(db, 'schoolCodes', codeKey), codeRecord);
-    await setDoc(doc(db, 'schoolCodes', normCode), codeRecord);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `schools/${schoolId}`);
   }
@@ -438,13 +378,10 @@ export async function addSchoolByCloudwise(schoolData: Omit<School, 'id' | 'crea
 // 9b. Update School's Assigned Bestuur
 export async function updateSchoolBestuur(
   schoolId: string,
-  schoolCode: string,
+  _schoolCode: string,
   bestuurId: string,
   bestuurName: string
 ): Promise<void> {
-  const normCode = normalizeSchoolCode(schoolCode);
-  const codeKey = normCode.replace('#', '').toUpperCase();
-
   try {
     await updateDoc(doc(db, 'schools', schoolId), {
       bestuurId,
@@ -452,19 +389,7 @@ export async function updateSchoolBestuur(
       updatedAt: new Date().toISOString(),
     });
   } catch (err) {
-    console.warn('Could not update school doc with bestuur:', err);
-  }
-
-  try {
-    const patch = {
-      bestuurId,
-      bestuurName,
-      updatedAt: new Date().toISOString(),
-    };
-    await setDoc(doc(db, 'schoolCodes', codeKey), patch, { merge: true });
-    await setDoc(doc(db, 'schoolCodes', normCode), patch, { merge: true });
-  } catch (err) {
-    console.warn('Could not update schoolCodes with bestuur:', err);
+    handleFirestoreError(err, OperationType.UPDATE, `schools/${schoolId}`);
   }
 }
 
@@ -996,6 +921,7 @@ export async function getSchoolActivationCodes(schoolId: string): Promise<Activa
 }
 
 // ================= 14. PROGRESS MANAGEMENT & TUSSENTIJDS OPSLAAN =================
+// Voortgang wordt per gebruiker opgeslagen onder /users/{userId}/testProgress/current
 export async function saveCandidateProgress(
   userId: string,
   currentQuestionIndex: number,
@@ -1010,14 +936,18 @@ export async function saveCandidateProgress(
     // ignore localstorage quota errors
   }
 
-  // 2. Firestore cloud backup
+  // 2. Firestore subcollection gekoppeld aan de gebruiker: /users/{userId}/testProgress/current
   try {
-    await setDoc(doc(db, 'testProgress', userId), cleanFirestoreData({
-      userId,
-      currentQuestionIndex: currentQuestionIndex ?? 0,
-      answers: answers ?? {},
-      updatedAt: new Date().toISOString(),
-    }), { merge: true });
+    await setDoc(
+      doc(db, 'users', userId, 'testProgress', 'current'),
+      cleanFirestoreData({
+        userId,
+        currentQuestionIndex: currentQuestionIndex ?? 0,
+        answers: answers ?? {},
+        updatedAt: new Date().toISOString(),
+      }),
+      { merge: true }
+    );
   } catch (err) {
     // Non-blocking background error
   }
@@ -1029,7 +959,39 @@ export async function getCandidateProgress(
   if (!userId) return null;
   const key = `cloudwise_progress_${userId}`;
 
-  // 1. Check local storage first
+  // 1. Check user-nested Firestore subcollection /users/{userId}/testProgress/current
+  try {
+    const snap = await getDoc(doc(db, 'users', userId, 'testProgress', 'current'));
+    if (snap.exists()) {
+      const data = snap.data();
+      return {
+        currentQuestionIndex: data.currentQuestionIndex || 0,
+        answers: data.answers || {},
+      };
+    }
+
+    // Migrate any legacy top-level testProgress/{userId} doc into /users/{userId}/testProgress/current
+    const legacySnap = await getDoc(doc(db, 'testProgress', userId));
+    if (legacySnap.exists()) {
+      const legacyData = legacySnap.data();
+      const migrated = {
+        userId,
+        currentQuestionIndex: legacyData.currentQuestionIndex || 0,
+        answers: legacyData.answers || {},
+        updatedAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, 'users', userId, 'testProgress', 'current'), cleanFirestoreData(migrated));
+      await deleteDoc(doc(db, 'testProgress', userId)).catch(() => {});
+      return {
+        currentQuestionIndex: migrated.currentQuestionIndex,
+        answers: migrated.answers,
+      };
+    }
+  } catch (err) {
+    // ignore and fallback to localStorage
+  }
+
+  // 2. Fallback to localStorage
   try {
     const local = localStorage.getItem(key);
     if (local) {
@@ -1039,21 +1001,26 @@ export async function getCandidateProgress(
     // fallback
   }
 
-  // 2. Check Firestore
+  return null;
+}
+
+export async function clearCandidateProgress(userId: string): Promise<void> {
+  if (!userId) return;
   try {
-    const snap = await getDoc(doc(db, 'testProgress', userId));
-    if (snap.exists()) {
-      const data = snap.data();
-      return {
-        currentQuestionIndex: data.currentQuestionIndex || 0,
-        answers: data.answers || {},
-      };
-    }
-  } catch (err) {
+    localStorage.removeItem(`cloudwise_progress_${userId}`);
+  } catch {
     // ignore
   }
-
-  return null;
+  try {
+    await deleteDoc(doc(db, 'users', userId, 'testProgress', 'current'));
+  } catch {
+    // ignore if non-existent
+  }
+  try {
+    await deleteDoc(doc(db, 'testProgress', userId));
+  } catch {
+    // ignore legacy cleanup errors
+  }
 }
 
 // ================= 15. LINK SCHOOLCODE & UNLOCK ASSESSMENT =================

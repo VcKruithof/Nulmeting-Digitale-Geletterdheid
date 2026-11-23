@@ -7,6 +7,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
     // Role can only be assigned in Firebase.
     // Cloudwise Beheerder (v.kruithof@edu.cloudwise.nl / kruithof.v@gmail.com)
     function isCloudwiseAdmin() {
@@ -34,16 +38,9 @@ service cloud.firestore {
       allow read: if true;
     }
 
-    // Scholen collectie (alleen in Firebase opgeslagen, beheerd door Cloudwise)
-    // Publiek leesbaar zodat leerkrachten hun schoolcode kunnen verifiëren bij registratie
+    // Scholen collectie (bevat direct de schoolnaam, unieke schoolcode, bestuur & modules)
+    // Publiek leesbaar zodat leerkrachten hun schoolcode kunnen verifiëren na inloggen
     match /schools/{schoolId} {
-      allow read: if true;
-      allow write: if isCloudwiseAdmin();
-    }
-
-    // Schoolcodes validatie index (in Firebase opgeslagen)
-    // Publiek leesbaar zodat schoolcodes realtime in Firebase gevalideerd kunnen worden
-    match /schoolCodes/{code} {
       allow read: if true;
       allow write: if isCloudwiseAdmin();
     }
@@ -56,10 +53,19 @@ service cloud.firestore {
       allow create: if isOwner(userId) && (!('isCloudwiseAdmin' in request.resource.data) || request.resource.data.isCloudwiseAdmin == false);
       allow update: if (isOwner(userId) && (!('isCloudwiseAdmin' in request.resource.data) || request.resource.data.isCloudwiseAdmin == resource.data.isCloudwiseAdmin)) || isCloudwiseAdmin();
       allow delete: if isCloudwiseAdmin();
+
+      // Tussentijdse voortgang gekoppeld aan de gebruiker (subcollectie onder users/{userId})
+      match /testProgress/{progressId} {
+        allow get, list: if (isOwner(userId) || isCloudwiseAdmin()) && isValidId(userId);
+        allow create, update: if (isOwner(userId) || isCloudwiseAdmin())
+          && isValidId(userId)
+          && isValidId(progressId)
+          && (!('userId' in request.resource.data) || request.resource.data.userId == userId);
+        allow delete: if (isOwner(userId) || isCloudwiseAdmin()) && isValidId(userId);
+      }
     }
 
     // Nulmeting Assessment resultaten
-    // "Dit schoolrapport wordt overigens aan niemand getoond en kan enkel door Cloudwise worden opgevraagd."
     match /assessments/{assessmentId} {
       allow get: if (isSignedIn() && resource.data.userId == request.auth.uid) || isCloudwiseAdmin();
       allow list: if (isSignedIn() && resource.data.userId == request.auth.uid) || isCloudwiseAdmin();
@@ -67,7 +73,7 @@ service cloud.firestore {
       allow update, delete: if isCloudwiseAdmin();
     }
 
-    // Admins collectie (Read-only voor admins, nooit schrijfbaar via client - enkel vanuit Firebase console/admin)
+    // Admins collectie (Read-only voor admins, nooit schrijfbaar via client)
     match /admins/{adminId} {
       allow read: if isCloudwiseAdmin();
       allow write: if false;
@@ -92,9 +98,16 @@ service cloud.firestore {
       allow delete: if isCloudwiseAdmin();
     }
 
-    // Tussentijds opslaan / testvoortgang (Voorkomt dataverlies bij netwerkonderbrekingen)
+    // Legacy opruiming (geen nieuwe writes toegestaan, enkel read/delete voor migratie & opschoning)
+    match /schoolCodes/{code} {
+      allow read: if true;
+      allow delete: if isCloudwiseAdmin();
+      allow create, update: if false;
+    }
+
     match /testProgress/{userId} {
-      allow read, write: if isOwner(userId) || isCloudwiseAdmin();
+      allow read, delete: if isOwner(userId) || isCloudwiseAdmin();
+      allow create, update: if false;
     }
   }
 }

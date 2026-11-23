@@ -13,9 +13,23 @@
       },
       "required": ["email", "isActive"]
     },
+    "Bestuur": {
+      "title": "Bestuur",
+      "description": "Onderwijsbestuur waaraan scholen gekoppeld zijn",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "deadline": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "code"]
+    },
     "School": {
       "title": "School",
-      "description": "School organisatie gekoppeld aan een unieke schoolcode",
+      "description": "School organisatie inclusief de unieke schoolcode, bestuur en modules",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -23,41 +37,62 @@
         "schoolCode": { "type": "string" },
         "city": { "type": "string" },
         "sector": { "type": "string" },
+        "bestuurId": { "type": "string" },
+        "bestuurName": { "type": "string" },
+        "assignedModules": { "type": "array" },
+        "deadline": { "type": "string" },
         "isActive": { "type": "boolean" },
         "createdAt": { "type": "string" },
         "createdByUser": { "type": "string" }
       },
       "required": ["id", "name", "schoolCode", "isActive"]
     },
-    "SchoolCode": {
-      "title": "SchoolCode",
-      "description": "Validatie index voor unieke schoolcodes",
+    "ActivationCode": {
+      "title": "ActivationCode",
+      "description": "Kandidaat-activeringscode gekoppeld aan een school",
       "type": "object",
       "properties": {
         "code": { "type": "string" },
         "schoolId": { "type": "string" },
+        "bestuurId": { "type": "string" },
         "schoolName": { "type": "string" },
-        "isActive": { "type": "boolean" }
+        "targetSector": { "type": "string" },
+        "targetFunction": { "type": "string" },
+        "isUsed": { "type": "boolean" }
       },
-      "required": ["code", "schoolId", "schoolName", "isActive"]
+      "required": ["code", "schoolId", "schoolName"]
     },
     "UserProfile": {
       "title": "UserProfile",
       "description": "Profiel van een onderwijsprofessional gekoppeld aan een school",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
+        "uid": { "type": "string" },
         "email": { "type": "string" },
         "displayName": { "type": "string" },
         "role": { "type": "string" },
         "schoolId": { "type": "string" },
         "schoolCode": { "type": "string" },
         "schoolName": { "type": "string" },
+        "bestuurId": { "type": "string" },
         "targetSector": { "type": "string" },
         "isCloudwiseAdmin": { "type": "boolean" },
+        "isActivated": { "type": "boolean" },
         "createdAt": { "type": "string" }
       },
-      "required": ["id", "email", "displayName", "schoolId", "schoolCode"]
+      "required": ["uid", "email", "displayName"]
+    },
+    "TestProgress": {
+      "title": "TestProgress",
+      "description": "Tussentijdse voortgangsopslag genest onder het gebruikersprofiel",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "currentQuestionIndex": { "type": "number" },
+        "answers": { "type": "object" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "currentQuestionIndex"]
     },
     "Assessment": {
       "title": "Assessment",
@@ -72,11 +107,24 @@
         "schoolId": { "type": "string" },
         "schoolCode": { "type": "string" },
         "schoolName": { "type": "string" },
+        "bestuurId": { "type": "string" },
         "targetSector": { "type": "string" },
-        "overallPercentage": { "type": "number" },
+        "overallScorePercentage": { "type": "number" },
         "createdAt": { "type": "string" }
       },
-      "required": ["id", "userId", "schoolId", "schoolCode", "overallPercentage"]
+      "required": ["id", "userId", "schoolId", "schoolCode", "overallScorePercentage"]
+    },
+    "QuestionOverride": {
+      "title": "QuestionOverride",
+      "description": "Aangepaste vraag of antwoordoptie vanuit het admin portaal",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "docKey": { "type": "string" },
+        "questionText": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "docKey", "questionText"]
     }
   },
   "firestore": {
@@ -84,33 +132,33 @@
       "schema": "AdminUser",
       "description": "Exclusieve beheerderslijst enkel vanuit Firebase toegekend"
     },
+    "/besturen/{bestuurId}": {
+      "schema": "Bestuur",
+      "description": "Onderwijsbesturen gekoppeld aan scholen en uiterste toetsdatum (deadline)"
+    },
     "/schools/{schoolId}": {
       "schema": "School",
-      "description": "Geregistreerde scholen beheerd door Cloudwise"
+      "description": "Geregistreerde scholen inclusief unieke schoolcode en toegewezen modules"
     },
-    "/schoolCodes/{code}": {
-      "schema": "SchoolCode",
-      "description": "Actieve schoolcodes ter validatie tijdens registratie"
+    "/activationCodes/{code}": {
+      "schema": "ActivationCode",
+      "description": "Optionele activeringscodes per doelgroep met gekoppelde school en modules"
     },
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "Gebruikersprofielen met gekoppelde schoolcode"
+      "description": "Gebruikersprofielen met gekoppelde school"
+    },
+    "/users/{userId}/testProgress/{progressId}": {
+      "schema": "TestProgress",
+      "description": "Tussentijdse voortgangsopslag per gebruiker gekoppeld aan het gebruikersprofiel"
     },
     "/assessments/{assessmentId}": {
       "schema": "Assessment",
       "description": "Nulmeting scores voor individueel inzien en geaggregeerde Cloudwise schoolrapporten"
     },
-    "/besturen/{bestuurId}": {
-      "schema": "School",
-      "description": "Onderwijsbesturen gekoppeld aan scholen en uiterste toetsdatum (deadline)"
-    },
-    "/activationCodes/{code}": {
-      "schema": "SchoolCode",
-      "description": "Activeringscodes met gekoppelde modules en doelgroep"
-    },
-    "/testProgress/{userId}": {
-      "schema": "Assessment",
-      "description": "Tussentijdse voortgangsopslag ter voorkoming van dataverlies"
+    "/questionBank/{questionId}": {
+      "schema": "QuestionOverride",
+      "description": "Aangepaste vragen en antwoorden vanuit de vragenbank"
     }
   }
 }

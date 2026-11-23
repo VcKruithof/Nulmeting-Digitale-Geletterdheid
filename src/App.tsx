@@ -23,6 +23,7 @@ import {
   getUserAssessments,
   saveCandidateProgress,
   getCandidateProgress,
+  clearCandidateProgress,
   DEFAULT_BESTUREN,
   getQuestionOverrides,
 } from './services/firebase';
@@ -142,9 +143,17 @@ export default function App() {
                 if (latest?.result) {
                   setResults(latest.result);
                 }
+              } else if (Object.keys(answersRef.current || {}).length === 0) {
+                // Restore in-progress test from /users/{uid}/testProgress/current if present
+                const savedProgress = await getCandidateProgress(firebaseUser.uid);
+                if (savedProgress && savedProgress.answers && Object.keys(savedProgress.answers).length > 0) {
+                  answersRef.current = savedProgress.answers;
+                  setAnswers(savedProgress.answers);
+                  setCurrentQuestionIndex(savedProgress.currentQuestionIndex || 0);
+                }
               }
             } catch (err) {
-              console.warn('Could not load user assessments:', err);
+              console.warn('Could not load user assessments or progress:', err);
             }
 
             // Enforce targetSector if school is strictly PO or VO
@@ -444,6 +453,7 @@ export default function App() {
         saveAssessmentRecord(finalResult, currentUser).catch((err) => {
           console.warn('Could not save assessment to Firestore:', err);
         });
+        clearCandidateProgress(currentUser.uid).catch(() => {});
       }
 
       setScreen('results');
@@ -496,6 +506,9 @@ export default function App() {
     setAnswers({});
     setCurrentQuestionIndex(0);
     setResults(null);
+    if (currentUser?.uid) {
+      clearCandidateProgress(currentUser.uid).catch(() => {});
+    }
     setScreen('quiz');
     setActiveTab('test');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -508,6 +521,9 @@ export default function App() {
     setAnswers({});
     setResults(null);
     setCurrentQuestionIndex(0);
+    if (currentUser?.uid) {
+      clearCandidateProgress(currentUser.uid).catch(() => {});
+    }
     const userModules = currentUser?.assignedModules && currentUser.assignedModules.length > 0
       ? currentUser.assignedModules
       : ['kerndoelen'];

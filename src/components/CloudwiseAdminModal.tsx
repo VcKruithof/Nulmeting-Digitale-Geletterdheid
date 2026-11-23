@@ -1832,8 +1832,7 @@ export const CloudwiseAdminModal: React.FC<CloudwiseAdminModalProps> = ({
               </p>
               <p>Hiermee wordt de volgende gekoppelde data direct en permanent gewist uit Firestore:</p>
               <ul className="list-disc pl-5 space-y-1 text-red-900 text-[11px]">
-                <li>Het schooldocument in de <span className="font-mono">schools</span>-collectie</li>
-                <li>De actieve schoolcode-registratie in <span className="font-mono">schoolCodes</span></li>
+                <li>Het schooldocument inclusief de gekoppelde schoolcode in de <span className="font-mono">schools</span>-collectie</li>
                 <li>Alle opgeslagen assessment-resultaten en team-scores van deze school</li>
                 <li>Alle gegenereerde kandidaat-activeringscodes (CW-ACT-...)</li>
                 <li>Gekoppelde gebruikersaccounts worden veilig ontkoppeld van deze school</li>
